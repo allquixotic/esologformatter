@@ -405,3 +405,10 @@ document.getElementById('drop-zone').addEventListener('dragover', handleDragOver
 document.getElementById('drop-zone').addEventListener('dragleave', handleDragLeave, false);
 document.getElementById('drop-zone').addEventListener('drop', handleDrop, false);
 document.getElementById('customFile').addEventListener('change', handleFileSelect, false);
+
+if(window.location.href.indexOf("dev") > -1) {
+  document.getElementById('debug').style.display = "inline";
+}
+else {
+  document.getElementById('debug').style.display = "none";
+}
