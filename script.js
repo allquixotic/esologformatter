@@ -406,9 +406,6 @@ document.getElementById('drop-zone').addEventListener('dragleave', handleDragLea
 document.getElementById('drop-zone').addEventListener('drop', handleDrop, false);
 document.getElementById('customFile').addEventListener('change', handleFileSelect, false);
 
-if(window.location.href.indexOf("dev") > -1) {
-  document.getElementById('debug').style.display = "inline";
-}
-else {
+if(!(window.location.href.indexOf("dev") > -1)) {
   document.getElementById('debug').style.display = "none";
 }
