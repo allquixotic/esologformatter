@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<!--
+Copyright 2019 Sean McNamara <smcnam@gmail.com>
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-->
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <title>ESO Log Formatter</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootswatch/4.3.1/united/bootstrap.min.css" crossorigin="anonymous"/>
+    <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.css" crossorigin="anonymous"/>
+    <link href="style.css" rel="stylesheet" type="text/css" />
+  </head>
+  <body>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.3.1/jquery.min.js" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.24.0/moment.min.js" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-daterangepicker/3.0.3/daterangepicker.min.js" crossorigin="anonymous"></script>
+    <script src="luxon.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.3/umd/popper.min.js" integrity="sha384-ZMP7rVo3mIykV+2+9J3UJ46jBk0WLaUAdn689aCwoqbBJiSnjAK/l8WvCWPIPm49" crossorigin="anonymous"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js" crossorigin="anonymous"></script>
+    <div id="step1">
+      <h2>Step 1.</h2> <label id="customFileLabel" class="btn btn-primary btn-file">
+          Choose Log File(s) <input type="file" id="customFile" style="display: none;" multiple>
+      </label>
+      Or drag and drop files below
+      <div class="upload-drop-zone" id="drop-zone">
+        Just drag and drop files here
+      </div>
+    </div>
+    <div id="list"></div>
+    <div id="step2" style="display:none;">
+      <br/>
+      <h2>Step 2. Options</h2>
+      <h3>General Options</h3>
+      <label for="timeformat">Time Format</label>
+      <select id="timeformat" class="form-control match-content" onchange="timeFormatChange()">
+        <option value="friendly">US: [02/17/19 03:38pm UTC-5]</option>
+        <option value="friendlynotz">US without Timezone: [02/17/19 03:38pm]</option>
+        <option value="minfriendly">Minimal US: 2/17/19 3:38pm</option>
+        <option value="orig">Raw: 2019-02-17T15:38:15.052-05:00</option>
+        <option value="european">European (DD/MM/YY): 17/2/19 15:38 UTC-5</option>
+        <option value="none">None</option>
+      </select>
+      <label for="outputformat">Output Format</label>
+      <select id="outputformat" class="form-control match-content" onchange="outputFormatChange()">
+        <option value="table">HTML Table</option>
+        <option value="plain">Plain Text</option>
+      </select>
+      <label for="sorttime" style="display: inline;">Sort by time?</label>
+      <input id="sorttime" type="checkbox" class="form-control match-content" style="display: inline;" onchange="sortTimeChange()">
+      <h3>Identify and Select Channels</h3>
+      <div class="table-responsive">
+      <table id="channelTable" class="table table-bordered">
+        <thead class="thead-light">
+          <tr id="headerRow">
+            <th scope="col" style="display: table-cell;">Include in Output?</th>
+            <th scope="col" style="display: table-cell;">Channel Name</th>
+            <th scope="col" style="display: table-cell;">Channel # in Log</th>
+            <th scope="col" style="display: table-cell;">Example Chat Lines</th>
+          </tr>
+        </thead>
+        <tbody id="channelTableBody">
+        </tbody>
+      </table>
+      </div>
+      <button id="goButton" class="btn-primary" onclick="doGenerate()">Generate</button>
+    </div>
+    <div class="border" id="debug"><h3>Debug Log</h3></div>
+    <div id="finalRender" style="display: none;"></div>
+    <script src="script.js"></script>
+  </body>
+</html>
