@@ -376,7 +376,7 @@ function runStepTwo() {
 }
 
 function doGenerate() {
-  ["step1", "list", "step2", "debug"].forEach((e) => document.getElementById(e).style.display = "none");
+  ["instructions", "step1", "list", "step2", "debug"].forEach((e) => document.getElementById(e).style.display = "none");
   let fr = document.getElementById("finalRender");
   fr.appendChild(renderResultList(allLines, null, null, "final"));
   fr.style.display = "inline";
