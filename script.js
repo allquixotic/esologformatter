@@ -173,16 +173,16 @@ function getTimeValue(origTimeString) {
     return "";
   }
   if(document.getElementById("timeformat").value == "friendly") {
-    return luxon.DateTime.fromISO(origTimeString, {setZone: true}).setLocale('en-us').toFormat("LL/dd/yy hh:mm:ssa ZZZZ");
+    return luxon.DateTime.fromISO(origTimeString, {setZone: true}).toFormat("LL/dd/yy hh:mm:ssa ZZZZ");
   }
   else if(document.getElementById("timeformat").value == "friendlynotz") {
-    return luxon.DateTime.fromISO(origTimeString, {setZone: true}).setLocale('en-us').toFormat("LL/dd/yy hh:mm:ssa");
+    return luxon.DateTime.fromISO(origTimeString, {setZone: true}).toFormat("LL/dd/yy hh:mm:ssa");
   }
   else if(document.getElementById("timeformat").value == "minfriendly") {
-    return luxon.DateTime.fromISO(origTimeString, {setZone: true}).setLocale('en-us').toFormat("L/d/yy h:mm:ssa");
+    return luxon.DateTime.fromISO(origTimeString, {setZone: true}).toFormat("L/d/yy h:mm:ssa");
   }
   else if(document.getElementById("timeformat").value == "european") {
-    return luxon.DateTime.fromISO(origTimeString, {setZone: true}).setLocale('en-us').toFormat("dd/LL/yy HH:mm:ss ZZZZ");
+    return luxon.DateTime.fromISO(origTimeString, {setZone: true}).toFormat("dd/LL/yy HH:mm:ss ZZZZ");
   }
   return origTimeString; 
 }
@@ -317,13 +317,13 @@ async function handleDrop(evt) {
     for (let i = 0; i < evt.dataTransfer.items.length; i++) {
       if (evt.dataTransfer.items[i].kind === 'file') {
         file = evt.dataTransfer.items[i].getAsFile();
-        processFile(file);
+        await processFile(file);
       }
     }
-  } 
+  }
   else {
-    for (let i = 0; i < ev.dataTransfer.files.length; i++) {
-      file = ev.dataTransfer.files[i];
+    for (let i = 0; i < evt.dataTransfer.files.length; i++) {
+      file = evt.dataTransfer.files[i];
       await processFile(file);
     }
   } 
