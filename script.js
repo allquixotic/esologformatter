@@ -312,21 +312,15 @@ async function handleDrop(evt) {
   evt.preventDefault();
   this.className = 'upload-drop-zone';
   outputList = createOutputList();
-  let file = null;
-  if (evt.dataTransfer.items) {
-    for (let i = 0; i < evt.dataTransfer.items.length; i++) {
-      if (evt.dataTransfer.items[i].kind === 'file') {
-        file = evt.dataTransfer.items[i].getAsFile();
-        await processFile(file);
-      }
-    }
-  }
-  else {
-    for (let i = 0; i < evt.dataTransfer.files.length; i++) {
-      file = evt.dataTransfer.files[i];
-      await processFile(file);
-    }
-  } 
+
+  let files = evt.dataTransfer.items ?
+    Array.from(evt.dataTransfer.items).filter(item => item.kind === 'file').map(item => item.getAsFile()) :
+    Array.from(evt.dataTrasnfer.files);
+
+  let processing = files.map(file => processFile(file));
+
+  await Promise.all(processing);
+  
   runStepTwo();
 }
 
