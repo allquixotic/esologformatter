@@ -18,6 +18,7 @@ var fileHolder = [];
 var outputList = null;
 var allLines = [];
 var channels = {};
+var prod = true;
 const linerx = new RegExp(/^((\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})\.(\d{3})-(\d{2}):(\d{2})) (\d{1,2}),([^,]+),(.*)$/, "gmi");
 
 //As of API 100025 (Murkmire/v4.2)
@@ -106,7 +107,7 @@ function getDropListItems() {
   return retval;
 }
 
-function channelNameChange(element) { 
+async function channelNameChange(element) { 
   let channelNum = getChannelNameFromId(element);
   let custText = document.getElementById(`channelCustText${channelNum}`).value;
   if(custText == null || custText.trim() == "") {
@@ -119,29 +120,42 @@ function channelNameChange(element) {
   recalcExamples();
 }
 
-function channelNameDropdownChange() {
+async function channelNameDropdownChange() {
   channelNameChange(this);
 }
 
-function timeFormatChange() {
+async function timeFormatChange() {
   recalcExamples();
 }
 
-function outputFormatChange() {
+async function outputFormatChange() {
   recalcExamples();
 }
 
-function sortTimeChange() {
+async function sortTimeChange() {
   //recalcExamples();
 }
 
-function recalcExamples() {
-  document.getElementsByName("exampleTextTd").forEach((ett) => {
+async function drpcbChange() {
+  if(document.getElementById('drpcb').checked) {
+    ["drplbl", "drp"].forEach((e) => document.getElementById(e).style.display = "block");
+  }
+  else {
+    ["drplbl", "drp"].forEach((e) => document.getElementById(e).style.display = "none");
+  }
+  recalcExamples();
+}
+
+async function recalcExamples() {
+  document.getElementById('spinny').style.display = 'block';
+  document.getElementsByName("exampleTextTd").forEach(async (ett) => {
     let channelNum = getChannelNameFromId(ett);
     let resultList = channels[channelNum];
     ett = removeAllChildren(ett);
-    ett.appendChild(renderResultList(resultList, channelNum, 6))
+    let rslt = await renderResultListThread(resultList, channelNum, 6);
+    ett.appendChild(rslt);
   });
+  document.getElementById('spinny').style.display = 'none';
 }
 
 function createFormField(tag, nameBase, channelNum) {
@@ -161,43 +175,81 @@ function createCustField(channelNum) {
   return div;
 }
 
-function getTimeHeader() {
-  if(document.getElementById("timeformat").value == "none") {
-    return "";
-  }
-  return "<td>Time</td>";
+async function renderResultListThread(resultList, channelNum, howMany = null, prefix = "example") {
+  let channelChecks = {};
+  document.getElementsByName("useChannelCheck").forEach((e) => channelChecks[getChannelNameFromId(e)] = e.checked);
+  let param = {
+    fn: calculateResultList,
+    args: [
+      channelChecks,
+      document.getElementById('drpcb').checked,
+      $('#drp').data('daterangepicker').startDate.valueOf(),
+      $('#drp').data('daterangepicker').endDate.valueOf(),
+      resultList, channelNum, howMany
+    ]
+  };
+  let theList = await window.vkthread.exec(param);
+  document.getElementById('spinny').style.display = 'none';
+  return renderResultList(theList, channelNum, prefix);
 }
 
-function getTimeValue(origTimeString) {
-  if(document.getElementById("timeformat").value == "none") {
-    return "";
+function calculateResultList(channelChecks, dateCheck, startDate, endDate, resultList, channelNum, howMany = null) {
+  let retval = [];
+  let numAdded = 0;
+  const includeResult = (resultListEntry, channelNum, dateCheck) => {
+    let mom = resultListEntry[14];
+    //dbg("mom: " + mom + ", startDate: " + startDate + ", endDate: " + endDate);
+    return ((channelNum != null && channelNum != "") || channelChecks[resultListEntry[11]])
+          && (dateCheck == false || (mom >= startDate && mom <= endDate));
+  };
+
+  for(let i = 0; (howMany == null || numAdded < Number(howMany)) && i < resultList.length; i++) {
+    let mom = resultList[i][14];
+    if(includeResult(resultList[i], channelNum, dateCheck)) {
+      numAdded++;
+      retval.push(resultList[i]);
+    }
   }
-  if(document.getElementById("timeformat").value == "friendly") {
-    return luxon.DateTime.fromISO(origTimeString, {setZone: true}).toFormat("LL/dd/yy hh:mm:ssa ZZZZ");
-  }
-  else if(document.getElementById("timeformat").value == "friendlynotz") {
-    return luxon.DateTime.fromISO(origTimeString, {setZone: true}).toFormat("LL/dd/yy hh:mm:ssa");
-  }
-  else if(document.getElementById("timeformat").value == "minfriendly") {
-    return luxon.DateTime.fromISO(origTimeString, {setZone: true}).toFormat("L/d/yy h:mm:ssa");
-  }
-  else if(document.getElementById("timeformat").value == "european") {
-    return luxon.DateTime.fromISO(origTimeString, {setZone: true}).toFormat("dd/LL/yy HH:mm:ss ZZZZ");
-  }
-  return origTimeString; 
+
+  return retval;
 }
 
-function getTimeCell(origTimeString) {
-  if(document.getElementById("timeformat").value == "none") {
-    return "";
+function renderResultList(resultList, channelNum, prefix = "example") {
+  const getTimeHeader = () => {
+    if(document.getElementById("timeformat").value == "none") {
+      return "";
+    }
+    return "<td>Time</td>";
+  };
+  const getTimeValue = (origTimeString) => {
+    if(document.getElementById("timeformat").value == "none") {
+      return "";
+    }
+    if(document.getElementById("timeformat").value == "friendly") {
+      return luxon.DateTime.fromISO(origTimeString, {setZone: true}).toFormat("LL/dd/yy hh:mm:ssa ZZZZ");
+    }
+    else if(document.getElementById("timeformat").value == "friendlynotz") {
+      return luxon.DateTime.fromISO(origTimeString, {setZone: true}).toFormat("LL/dd/yy hh:mm:ssa");
+    }
+    else if(document.getElementById("timeformat").value == "minfriendly") {
+      return luxon.DateTime.fromISO(origTimeString, {setZone: true}).toFormat("L/d/yy h:mm:ssa");
+    }
+    else if(document.getElementById("timeformat").value == "european") {
+      return luxon.DateTime.fromISO(origTimeString, {setZone: true}).toFormat("dd/LL/yy HH:mm:ss ZZZZ");
+    }
+    return origTimeString; 
+  };
+  const getTimeCell = (origTimeString) => {
+    if(document.getElementById("timeformat").value == "none") {
+      return "";
+    }
+    return `<td>${getTimeValue(origTimeString)}</td>`;
   }
-  return `<td>${getTimeValue(origTimeString)}</td>`;
-}
 
-function renderResultList(resultList, channelNum, howMany = null, prefix = "example") {
   if(channelNum == null) channelNum = "";
   let retval = document.createElement("div");
   retval.style = "word-wrap: break-word;";
+  
   if(document.getElementById("outputformat").value == "table") {
     retval.innerHTML = `
       <table id="${prefix}TextTable${channelNum}" class="table table-bordered table-sm">
@@ -214,54 +266,50 @@ function renderResultList(resultList, channelNum, howMany = null, prefix = "exam
       </table>
     `.trim();
     let tbody = retval.querySelector(`#${prefix}TextTbody${channelNum}`);
-    for(let i = 0; (howMany == null || i < Number(howMany)) && i < resultList.length; i++) {
-      if((channelNum != null && channelNum != "") || document.getElementById(`useChannelCheck${resultList[i][11]}`).checked) {
-        let row = document.createElement("tr");
-        row.innerHTML = `
-          ${getTimeCell(resultList[i][1])}
-          <td>${chatChannelLabels[resultList[i][11]]}</td>
-          <td>${resultList[i][12]}</td>
-          <td style="word-wrap: break-word;">${resultList[i][13]}</td>
-        `.trim();
-        tbody.appendChild(row);
-      }
+    for(let i = 0; i < resultList.length; i++) {
+      let row = document.createElement("tr");
+      row.innerHTML = `
+        ${getTimeCell(resultList[i][1])}
+        <td>${chatChannelLabels[resultList[i][11]]}</td>
+        <td>${resultList[i][12]}</td>
+        <td style="word-wrap: break-word;">${resultList[i][13]}</td>
+      `.trim();
+      tbody.appendChild(row);
     }
   }
   else {
     let tc = "";
-    for(let i = 0; (howMany == null || i < Number(howMany)) && i < resultList.length; i++) {
-      if((channelNum != null && channelNum != "") || document.getElementById(`useChannelCheck${resultList[i][11]}`).checked) {
-        let tv = getTimeValue(resultList[i][1]);
-        if(tv != null && tv != "") tc += "[" + tv + "] ";
-        let cc = chatChannels[resultList[i][11]];
-        if(cc == "Say") {
-          tc += resultList[i][12] + ": ";
-        }
-        else if(cc == "Emote") {
-          tc += resultList[i][12] + " ";
-        }
-        else if(cc == "Yell") {
-          tc += resultList[i][12] + " yells ";
-        }
-        else if(cc == "Whisper") {
-          tc += resultList[i][12] + ": "
-        }
-        else if(cc == "Outgoing Whisper") {
-          tc += "-> " + resultList[i][12] + ": "
-        }
-        else {
-          tc += "[" + chatChannelLabels[resultList[i][11]] + "] " + resultList[i][12] + ": ";
-        }
-        tc += resultList[i][13];
-        tc += "<br>";
+    for(let i = 0; i < resultList.length; i++) {
+      let tv = getTimeValue(resultList[i][1]);
+      if(tv != null && tv != "") tc += "[" + tv + "] ";
+      let cc = chatChannels[resultList[i][11]];
+      if(cc == "Say") {
+        tc += resultList[i][12] + ": ";
       }
+      else if(cc == "Emote") {
+        tc += resultList[i][12] + " ";
+      }
+      else if(cc == "Yell") {
+        tc += resultList[i][12] + " yells ";
+      }
+      else if(cc == "Whisper") {
+        tc += resultList[i][12] + ": "
+      }
+      else if(cc == "Outgoing Whisper") {
+        tc += "-> " + resultList[i][12] + ": "
+      }
+      else {
+        tc += "[" + chatChannelLabels[resultList[i][11]] + "] " + resultList[i][12] + ": ";
+      }
+      tc += resultList[i][13];
+      tc += "<br>";
     }
     retval.innerHTML = tc;
   }
   return retval;
 }
 
-function getTableRow(channelNum, resultList) {
+async function getTableRow(channelNum, resultList) {
   let tr = document.createElement("tr");
   tr.id = `channelRow${channelNum}`;
 
@@ -293,7 +341,8 @@ function getTableRow(channelNum, resultList) {
   dd.value = chatChannels[channelNum];
   dd.onchange = channelNameDropdownChange;
 
-  tr.querySelector(`#exampleTextTd${channelNum}`).appendChild(renderResultList(resultList, channelNum, 6));
+  let rslt = await renderResultListThread(resultList, channelNum, 6);
+  tr.querySelector(`#exampleTextTd${channelNum}`).appendChild(rslt);
 
   return tr;
 }
@@ -304,7 +353,7 @@ async function handleFileSelect(evt) {
   for (let i = 0, f; f = files[i]; i++) {
     await processFile(f);
   }
-  runStepTwo();
+  await runStepTwo();
 }
 
 async function handleDrop(evt) {
@@ -321,7 +370,7 @@ async function handleDrop(evt) {
 
   await Promise.all(processing);
   
-  runStepTwo();
+  await runStepTwo();
 }
 
 async function processFile(f) {
@@ -334,7 +383,9 @@ async function processFile(f) {
 }
 
 function dbg(txt) {
-  document.getElementById("debug").innerHTML += txt + "<br>";
+  if(!prod) {
+    document.getElementById("debug").innerHTML += txt + "<br>";
+  }
 }
 
 function sortLinesByTimestamp(lins) {
@@ -343,25 +394,27 @@ function sortLinesByTimestamp(lins) {
   });
 }
 
-function runStepTwo() {
+async function runStepTwo() {
+  document.getElementById('spinny').style.display = 'block';
   document.getElementById('list').appendChild(outputList);
   document.getElementById('step2').style.display = 'inline';
   document.getElementById('step1').style.display = 'none';
-  fileHolder.forEach((fil) => {
+  fileHolder.forEach(async (fil) => {
     let result;
     while(result = linerx.exec(fil.text)) {
-      let listItem = document.createElement('li');
       let n11 = Number(result[11]);
       if(!channels[n11]) {
         channels[n11] = [];
       }
+      result.push(moment(result[1]).valueOf());
       channels[n11].push(result);
       allLines.push(result);
     }
   
     let tabl = document.getElementById('channelTable');
-    Object.keys(channels).forEach(function(key,index) {
-      tabl.appendChild(getTableRow(key, channels[key]));
+    await Object.keys(channels).forEach(async function(key,index) {
+      let gtr = await getTableRow(key, channels[key]);
+      tabl.appendChild(gtr);
     });
     $(tabl).on('input', 'input[name=channelCustText]', (e) => { 
       channelNameChange(e.target);
@@ -369,10 +422,11 @@ function runStepTwo() {
   });
 }
 
-function doGenerate() {
+async function doGenerate() {
   ["instructions", "step1", "list", "step2", "debug"].forEach((e) => document.getElementById(e).style.display = "none");
   let fr = document.getElementById("finalRender");
-  fr.appendChild(renderResultList(allLines, null, null, "final"));
+  let rslt = await renderResultListThread(allLines, null, null, "final");
+  fr.appendChild(rslt);
   fr.style.display = "inline";
 }
 
@@ -400,6 +454,33 @@ document.getElementById('drop-zone').addEventListener('dragleave', handleDragLea
 document.getElementById('drop-zone').addEventListener('drop', handleDrop, false);
 document.getElementById('customFile').addEventListener('change', handleFileSelect, false);
 
+$("#drp").daterangepicker({
+  "showDropdowns": true,
+  "timePicker": true,
+  "autoApply": false,
+  "autoInput": true,
+  "startDate": luxon.DateTime.local().minus({ days: 7 }).toFormat("LL/dd/yyyy"),
+  "endDate": luxon.DateTime.local().plus({ days: 1 }).toFormat("LL/dd/yyyy"),
+  ranges: {
+      'Today': [moment(), moment()],
+      'Yesterday': [moment().subtract(1, 'days'), moment().subtract(1, 'days')],
+      'Last 7 Days': [moment().subtract(6, 'days'), moment()],
+      'Last 30 Days': [moment().subtract(29, 'days'), moment()],
+      'This Month': [moment().startOf('month'), moment().endOf('month')],
+      'Last Month': [moment().subtract(1, 'month').startOf('month'), moment().subtract(1, 'month').endOf('month')],
+      'Eternity': [moment('1/1/2011'), moment().add(1, 'days')]
+  },
+  "maxDate": luxon.DateTime.local().plus({ days: 1 }).toFormat("LL/dd/yyyy")
+}, (ev, picker) => {
+  recalcExamples();
+});
+
+drpcbChange();
+
 if(!(window.location.href.indexOf("dev") > -1)) {
   document.getElementById('debug').style.display = "none";
+  prod = true;
+}
+else {
+  prod = false;
 }
