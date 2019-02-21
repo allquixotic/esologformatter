@@ -147,7 +147,6 @@ async function drpcbChange() {
 }
 
 async function recalcExamples() {
-  document.getElementById('spinny').style.display = 'block';
   document.getElementsByName("exampleTextTd").forEach(async (ett) => {
     let channelNum = getChannelNameFromId(ett);
     let resultList = channels[channelNum];
@@ -155,7 +154,6 @@ async function recalcExamples() {
     let rslt = await renderResultListThread(resultList, channelNum, 6);
     ett.appendChild(rslt);
   });
-  document.getElementById('spinny').style.display = 'none';
 }
 
 function createFormField(tag, nameBase, channelNum) {
@@ -178,18 +176,15 @@ function createCustField(channelNum) {
 async function renderResultListThread(resultList, channelNum, howMany = null, prefix = "example") {
   let channelChecks = {};
   document.getElementsByName("useChannelCheck").forEach((e) => channelChecks[getChannelNameFromId(e)] = e.checked);
-  let param = {
-    fn: calculateResultList,
-    args: [
-      channelChecks,
-      document.getElementById('drpcb').checked,
-      $('#drp').data('daterangepicker').startDate.valueOf(),
-      $('#drp').data('daterangepicker').endDate.valueOf(),
-      resultList, channelNum, howMany
-    ]
-  };
-  let theList = await window.vkthread.exec(param);
-  document.getElementById('spinny').style.display = 'none';
+  let theList = calculateResultList(
+    channelChecks, 
+    document.getElementById('drpcb').checked,
+    $('#drp').data('daterangepicker').startDate.valueOf(),
+    $('#drp').data('daterangepicker').endDate.valueOf(),
+    resultList,
+    channelNum,
+    howMany
+  );
   return renderResultList(theList, channelNum, prefix);
 }
 
@@ -198,7 +193,6 @@ function calculateResultList(channelChecks, dateCheck, startDate, endDate, resul
   let numAdded = 0;
   const includeResult = (resultListEntry, channelNum, dateCheck) => {
     let mom = resultListEntry[14];
-    //dbg("mom: " + mom + ", startDate: " + startDate + ", endDate: " + endDate);
     return ((channelNum != null && channelNum != "") || channelChecks[resultListEntry[11]])
           && (dateCheck == false || (mom >= startDate && mom <= endDate));
   };
@@ -395,7 +389,6 @@ function sortLinesByTimestamp(lins) {
 }
 
 async function runStepTwo() {
-  document.getElementById('spinny').style.display = 'block';
   document.getElementById('list').appendChild(outputList);
   document.getElementById('step2').style.display = 'inline';
   document.getElementById('step1').style.display = 'none';
