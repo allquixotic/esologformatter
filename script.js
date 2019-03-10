@@ -19,7 +19,7 @@ var outputList = null;
 var allLines = [];
 var channels = {};
 var prod = true;
-const linerx = new RegExp(/^((\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})\.(\d{3})-(\d{2}):(\d{2})) (\d{1,2}),([^,]+),(.*)$/, "gmi");
+const linerx = new RegExp(/^((\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})\.(\d{3})(?:-|\+)(\d{2}):(\d{2})) (\d{1,2}),([^,]+),(.*)$/, "gmi");
 
 //As of API 100025 (Murkmire/v4.2)
 const minChannel = 0;
