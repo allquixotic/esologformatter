@@ -287,7 +287,7 @@ function renderResultList(resultList, channelNum, prefix = "example") {
         tc += resultList[i][12] + " yells ";
       }
       else if(cc == "Whisper") {
-        tc += resultList[i][12] + ": "
+        tc += resultList[i][12] + " whispers: "
       }
       else if(cc == "Outgoing Whisper") {
         tc += "-> " + resultList[i][12] + ": "
