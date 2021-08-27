@@ -80,6 +80,12 @@ const readUploadedFileAsText = (inputFile) => {
   });
 };
 
+function escapeHTML(unsafeText) {
+    let div = document.createElement('div');
+    div.innerText = unsafeText;
+    return div.innerHTML;
+}
+
 function chatChannelsRev() {
   let tmp = {}; 
   Object.keys(chatChannels).forEach((ez) => tmp[chatChannels[ez]] = ez); 
@@ -266,7 +272,7 @@ function renderResultList(resultList, channelNum, prefix = "example") {
         ${getTimeCell(resultList[i][1])}
         <td>${chatChannelLabels[resultList[i][11]]}</td>
         <td>${resultList[i][12]}</td>
-        <td style="word-wrap: break-word;">${resultList[i][13]}</td>
+        <td style="word-wrap: break-word;">${escapeHTML(resultList[i][13])}</td>
       `.trim();
       tbody.appendChild(row);
     }
@@ -295,7 +301,7 @@ function renderResultList(resultList, channelNum, prefix = "example") {
       else {
         tc += "[" + chatChannelLabels[resultList[i][11]] + "] " + resultList[i][12] + ": ";
       }
-      tc += resultList[i][13];
+      tc += escapeHTML(resultList[i][13]);
       tc += "<br>";
     }
     retval.innerHTML = tc;
