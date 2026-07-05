@@ -3,6 +3,12 @@
 !.vscode/tasks.json
 !.vscode/launch.json
 !.vscode/extensions.json
+
+# Build output
+dist/
+
+# macOS
+.DS_Store
 # gitignore
 
 node_modules

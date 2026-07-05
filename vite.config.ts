@@ -1,5 +1,4 @@
-<!DOCTYPE html>
-<!--
+/*
 Copyright 2026 Sean McNamara <smcnam@gmail.com>
 
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,19 +12,22 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
--->
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta
-      name="description"
-      content="Format Elder Scrolls Online chat logs into readable text, roleplay narrative, or tables — entirely in your browser."
-    />
-    <title>ESO Log Formatter</title>
-  </head>
-  <body>
-    <div id="app"></div>
-    <script type="module" src="/src/main.ts"></script>
-  </body>
-</html>
+*/
+import { join } from 'node:path'
+import { defineConfig } from 'vite'
+import vue from '@vitejs/plugin-vue'
+import { quasar, transformAssetUrls } from '@quasar/vite-plugin'
+
+export default defineConfig({
+  plugins: [
+    vue({ template: { transformAssetUrls } }),
+    quasar({
+      sassVariables: join(import.meta.dirname, 'src/css/quasar-variables.sass'),
+    }),
+  ],
+  resolve: {
+    alias: {
+      '@': join(import.meta.dirname, 'src'),
+    },
+  },
+})
