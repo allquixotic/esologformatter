@@ -24,7 +24,7 @@ const expanded = computed(() => !session.hasInput)
           </li>
           <li>
             Turn raw ESO logs into readable plain text, clean roleplay narrative
-            ("Name says, …" — the Convocations style), or a legacy HTML table.
+            ("Name says, …"), or a legacy HTML table.
           </li>
         </ul>
 
@@ -35,8 +35,12 @@ const expanded = computed(() => !session.hasInput)
             Your log lives at
             <code>Documents\Elder Scrolls Online\live\Logs\ChatLog.log</code> (Windows).
           </li>
-          <li>Load one or more log files below, tune the options, then hit <b>Generate</b>.</li>
-          <li>Event presets can pull out just your weekly RP session, exactly like Convocations.</li>
+          <li>Set your options, point the tool at your log, then hit <b>Generate</b>.</li>
+          <li>Event presets pull out just your recurring weekly event — no manual date math.</li>
+          <li>
+            On Chromium-based browsers you grant access to your logs folder once and outputs are
+            saved straight back to it; other browsers upload a file and download the result.
+          </li>
         </ul>
 
         <div class="text-h6 q-mt-md q-mb-sm">Legal &amp; privacy</div>

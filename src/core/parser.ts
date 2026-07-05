@@ -37,7 +37,11 @@ export function parseChatLog(text: string, fileName: string, startIndex = 0): Ch
 export function parseFiles(files: InputFile[]): ChatLine[] {
   const all: ChatLine[] = []
   for (const file of files) {
-    all.push(...parseChatLog(file.text, file.name, all.length))
+    // No spread here: spreading a large log's lines as call arguments blows
+    // the engine argument limit ("Maximum call stack size exceeded").
+    for (const line of parseChatLog(file.text, file.name, all.length)) {
+      all.push(line)
+    }
   }
   return all
 }

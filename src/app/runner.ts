@@ -5,16 +5,18 @@
 import { diffLines, type Change } from 'diff'
 import { DateTime } from 'luxon'
 import { CHAT_CHANNELS } from '@/core/channels'
-import { defaultOutputName, type NamingContext } from '@/core/naming'
+import { defaultOutputName, uneditedName, type NamingContext } from '@/core/naming'
 import { runPipeline, type DateWindowMs } from '@/core/pipeline'
 import { validateDurationHours } from '@/core/presets'
 import { calculateEventWindow, effectiveWeeksAgo } from '@/core/schedule'
+import type { InputFile } from '@/core/types'
+import { verifyPermission, writeFileToDirectory } from '@/fs/access'
 import { correctText } from '@/llm/correction'
 import { loadCuratedCatalog, resolveModel } from '@/llm/curated'
 import { OpenRouterProvider } from '@/llm/openrouter'
 import { PromptApiProvider } from '@/llm/promptApi'
 import type { CorrectionProvider } from '@/llm/types'
-import { useSessionStore } from '@/stores/session'
+import { useSessionStore, type RunResult } from '@/stores/session'
 import { useSettingsStore } from '@/stores/settings'
 
 /** User-facing failure that should be shown as a notification. */
@@ -126,12 +128,36 @@ export async function generate(): Promise<void> {
   const settings = useSettingsStore()
   const session = useSessionStore()
 
-  if (!session.hasInput) {
+  const folderMode = session.workDir !== null
+  if (folderMode && session.logHandles.length === 0) {
+    throw new RunError('Choose a log file inside your folder first.')
+  }
+  if (!folderMode && !session.hasInput) {
     throw new RunError('Load at least one chat log file first.')
   }
 
   session.startRun()
   try {
+    if (folderMode) {
+      // Re-read the selected files fresh from disk: the game may have
+      // appended lines since the folder was connected.
+      session.beginStage('Read log files')
+      const dir = session.workDir!
+      if (!(await verifyPermission(dir, true))) {
+        throw new RunError('Access to the log folder was not granted.')
+      }
+      const inputs: InputFile[] = []
+      for (const handle of session.logHandles) {
+        const file = await handle.getFile()
+        inputs.push({ name: file.name, text: await file.text() })
+      }
+      session.setFiles(inputs)
+      session.note(
+        `Read ${inputs.length} file(s) fresh from \u201c${dir.name}\u201d — ${session.lines.length.toLocaleString()} chat lines`,
+      )
+      session.endStage('Read log files')
+    }
+
     session.beginStage('Calculate date filters')
     const { window, naming, description } = resolveWindow()
     session.note(description)
@@ -197,16 +223,36 @@ export async function generate(): Promise<void> {
       session.note('AI corrections are not applied to HTML Table output.')
     }
 
+    const result: RunResult = {
+      filename,
+      content: finalContent,
+      unedited: settings.keepOriginal ? unedited : undefined,
+      mime: settings.outputFormat === 'table' ? 'text/html' : 'text/plain',
+    }
+
+    if (folderMode) {
+      // Folder mode saves outputs straight back into the connected folder.
+      session.beginStage('Write output files')
+      try {
+        await writeFileToDirectory(session.workDir!, result.filename, result.content)
+        let written = result.filename
+        if (result.unedited !== undefined) {
+          const sibling = uneditedName(result.filename)
+          await writeFileToDirectory(session.workDir!, sibling, result.unedited)
+          written += `, ${sibling}`
+        }
+        result.writtenTo = session.workDir!.name
+        session.note(`Wrote ${written} to \u201c${session.workDir!.name}\u201d`)
+      } catch (err) {
+        session.error(
+          `Could not write output to the folder: ${(err as Error).message} — use Download instead.`,
+        )
+      }
+      session.endStage('Write output files')
+    }
+
     session.note(`Finished processing. Output ready as ${filename}`)
-    session.finishRun(
-      {
-        filename,
-        content: finalContent,
-        unedited: settings.keepOriginal ? unedited : undefined,
-        mime: settings.outputFormat === 'table' ? 'text/html' : 'text/plain',
-      },
-      diffParts,
-    )
+    session.finishRun(result, diffParts)
   } catch (err) {
     if (session.running) {
       session.error((err as Error).message)

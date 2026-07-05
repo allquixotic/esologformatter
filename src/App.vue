@@ -8,12 +8,10 @@ import InstructionsCard from '@/components/InstructionsCard.vue'
 import OptionsCard from '@/components/OptionsCard.vue'
 import RunCard from '@/components/RunCard.vue'
 import { completeOAuthLogin } from '@/llm/openrouter'
-import { useSessionStore } from '@/stores/session'
 import { useSettingsStore, type ThemePreference } from '@/stores/settings'
 
 const $q = useQuasar()
 const settings = useSettingsStore()
-const session = useSessionStore()
 
 settings.applyTheme()
 settings.$subscribe(() => {
@@ -85,14 +83,13 @@ onMounted(async () => {
     <q-page-container>
       <q-page padding>
         <div class="column q-gutter-md q-mx-auto" style="max-width: 1100px">
+          <!-- rconv-style flow: configure everything up front, then pick the log. -->
           <InstructionsCard />
+          <OptionsCard />
+          <ChannelsCard v-if="settings.outputFormat !== 'narrative'" />
+          <AiCard v-if="settings.outputFormat !== 'table'" />
           <InputCard />
-          <template v-if="session.hasInput">
-            <OptionsCard />
-            <ChannelsCard v-if="settings.outputFormat !== 'narrative'" />
-            <AiCard v-if="settings.outputFormat !== 'table'" />
-            <RunCard />
-          </template>
+          <RunCard />
         </div>
       </q-page>
     </q-page-container>

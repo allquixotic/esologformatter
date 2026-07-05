@@ -1,19 +1,36 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import type { QTableColumn } from 'quasar'
-import { ALL_CHANNEL_NAMES } from '@/core/channels'
+import { ALL_CHANNEL_NAMES, CHAT_CHANNELS } from '@/core/channels'
 import { useSessionStore, type ChannelSummary } from '@/stores/session'
 import { useSettingsStore } from '@/stores/settings'
 
 const session = useSessionStore()
 const settings = useSettingsStore()
 
-const columns: QTableColumn<ChannelSummary>[] = [
+const allColumns: QTableColumn<ChannelSummary>[] = [
   { name: 'enabled', label: 'Include?', field: 'channel', align: 'center' },
   { name: 'channel', label: 'Channel', field: 'channel', align: 'left' },
   { name: 'name', label: 'Display name', field: 'baseName', align: 'left' },
   { name: 'alias', label: 'Alias / abbrev.', field: 'channel', align: 'left' },
   { name: 'examples', label: 'Example chat lines', field: 'count', align: 'left' },
 ]
+
+const columns = computed(() =>
+  session.hasInput ? allColumns : allColumns.filter((c) => c.name !== 'examples'),
+)
+
+/** Before a log is loaded, every standard channel is configurable up front. */
+const rows = computed<ChannelSummary[]>(() =>
+  session.hasInput
+    ? session.channelSummaries
+    : Object.entries(CHAT_CHANNELS).map(([key, baseName]) => ({
+        channel: Number(key),
+        baseName,
+        count: 0,
+        examples: [],
+      })),
+)
 
 function setName(channel: number, value: string): void {
   settings.channelNames = { ...settings.channelNames, [channel]: value }
@@ -30,12 +47,15 @@ function setAlias(channel: number, value: string | number | null): void {
       <div class="text-h6">Channels</div>
       <div class="text-caption text-grey">
         Choose which channels appear in the output and how they are labeled.
+        <template v-if="!session.hasInput">
+          Once a log is loaded, only the channels found in it are listed.
+        </template>
       </div>
     </q-card-section>
 
     <q-card-section class="q-pt-none">
       <q-table
-        :rows="session.channelSummaries"
+        :rows="rows"
         :columns="columns"
         row-key="channel"
         flat
@@ -55,7 +75,11 @@ function setAlias(channel: number, value: string | number | null): void {
             <q-td key="channel" :props="props">
               <div class="text-weight-medium">{{ props.row.baseName }}</div>
               <div class="text-caption text-grey">
-                #{{ props.row.channel }} · {{ props.row.count.toLocaleString() }} lines
+                {{
+                  session.hasInput
+                    ? `#${props.row.channel} · ${props.row.count.toLocaleString()} lines`
+                    : `#${props.row.channel}`
+                }}
               </div>
             </q-td>
             <q-td key="name" :props="props">
@@ -78,7 +102,7 @@ function setAlias(channel: number, value: string | number | null): void {
                 @update:model-value="(v) => setAlias(props.row.channel, v)"
               />
             </q-td>
-            <q-td key="examples" :props="props" style="max-width: 380px">
+            <q-td v-if="session.hasInput" key="examples" :props="props" style="max-width: 380px">
               <div
                 v-for="ex in props.row.examples"
                 :key="ex.index"

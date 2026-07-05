@@ -8,7 +8,6 @@ export type ThemePreference = 'dark' | 'light' | 'system'
 export type DateMode = 'all' | 'preset' | 'custom'
 export type AiProviderId = 'openrouter' | 'prompt-api'
 export type ModelMode = 'auto' | 'curated' | 'manual'
-export type OutputTarget = 'download' | 'directory'
 
 export interface SettingsState {
   theme: ThemePreference
@@ -33,7 +32,6 @@ export interface SettingsState {
   modelId: string
   freeModelsOnly: boolean
   openrouterApiKey: string | null
-  outputTarget: OutputTarget
   /** Channel display-name dropdown selection (base channel name). */
   channelNames: Record<number, string>
   /** Free-text alias per channel; wins over the dropdown selection. */
@@ -69,7 +67,6 @@ function defaults(): SettingsState {
     modelId: '',
     freeModelsOnly: false,
     openrouterApiKey: null,
-    outputTarget: 'download',
     channelNames: {},
     channelAliases: {},
     channelsDisabled: [],

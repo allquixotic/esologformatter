@@ -23,6 +23,16 @@ describe('parseChatLog', () => {
     expect(lines[0]!.message).toBe('waves')
   })
 
+  test('parseFiles survives very large logs (engine argument limit)', () => {
+    const rows: string[] = []
+    for (let i = 0; i < 200_000; i++) {
+      rows.push(`2025-01-04T22:00:00.${String(i % 1000).padStart(3, '0')}-05:00 0,Bulk,line ${i}`)
+    }
+    const lines = parseFiles([{ name: 'big.log', text: rows.join('\n') }])
+    expect(lines).toHaveLength(200_000)
+    expect(lines[199_999]!.index).toBe(199_999)
+  })
+
   test('parseFiles assigns a global order and sortByTimestamp is stable', () => {
     const fileA = { name: 'a.log', text: '2025-01-04T22:05:00.000-05:00 0,A,later\n' }
     const fileB = {

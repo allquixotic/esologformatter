@@ -48,7 +48,7 @@ const schedulePreview = computed(() => {
 <template>
   <q-card flat bordered>
     <q-card-section>
-      <div class="text-h6">Step 2 — Options</div>
+      <div class="text-h6">Step 1 — Options</div>
     </q-card-section>
 
     <q-card-section class="q-pt-none column q-gutter-md">
@@ -65,8 +65,7 @@ const schedulePreview = computed(() => {
           The HTML table format is deprecated; prefer Plain Text or Roleplay Narrative.
         </div>
         <div v-if="settings.outputFormat === 'narrative'" class="text-caption text-grey q-mt-xs">
-          Narrative mode keeps only say + emote and formats them as clean prose
-          (Convocations style).
+          Narrative mode keeps only say + emote and formats them as clean prose.
         </div>
       </div>
 

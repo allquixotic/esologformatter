@@ -1,24 +1,10 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { QScrollArea, useQuasar } from 'quasar'
 import DiffView from '@/components/DiffView.vue'
 import { generate } from '@/app/runner'
 import { uneditedName } from '@/core/naming'
-import {
-  downloadText,
-  isAbortError,
-  pickOutputDirectory,
-  saveTextAs,
-  supportsDirectoryPicker,
-  supportsSaveAs,
-  verifyPermission,
-  writeFileToDirectory,
-} from '@/fs/access'
-import {
-  clearOutputDirectory,
-  loadOutputDirectory,
-  rememberOutputDirectory,
-} from '@/fs/handles'
+import { downloadText } from '@/fs/access'
 import { useSessionStore } from '@/stores/session'
 import { useSettingsStore } from '@/stores/settings'
 
@@ -27,17 +13,6 @@ const session = useSessionStore()
 const settings = useSettingsStore()
 
 const logScroll = ref<InstanceType<typeof QScrollArea> | null>(null)
-const dirHandle = ref<FileSystemDirectoryHandle | null>(null)
-
-onMounted(async () => {
-  if (supportsDirectoryPicker) {
-    try {
-      dirHandle.value = (await loadOutputDirectory()) ?? null
-    } catch {
-      dirHandle.value = null
-    }
-  }
-})
 
 watch(
   () => session.log.length,
@@ -50,11 +25,18 @@ watch(
 )
 
 const hasResult = computed(() => session.result !== null)
+const ready = computed(() => session.hasInput)
 
 async function run(): Promise<void> {
   try {
     await generate()
-    $q.notify({ type: 'positive', message: `Generated ${session.result?.filename ?? 'output'}.` })
+    const r = session.result
+    $q.notify({
+      type: 'positive',
+      message: r?.writtenTo
+        ? `Generated ${r.filename} and saved it to \u201c${r.writtenTo}\u201d.`
+        : `Generated ${r?.filename ?? 'output'}.`,
+    })
   } catch (err) {
     $q.notify({ type: 'negative', message: (err as Error).message })
   }
@@ -72,63 +54,6 @@ function download(): void {
     downloadText(uneditedName(r.filename), r.unedited)
   }
 }
-
-async function saveAs(): Promise<void> {
-  const r = session.result
-  if (!r) return
-  try {
-    await saveTextAs(r.filename, r.content)
-    if (r.unedited !== undefined) {
-      await saveTextAs(uneditedName(r.filename), r.unedited)
-    }
-    $q.notify({ type: 'positive', message: 'Saved.' })
-  } catch (err) {
-    if (!isAbortError(err)) {
-      $q.notify({ type: 'negative', message: `Save failed: ${(err as Error).message}` })
-    }
-  }
-}
-
-async function chooseDirectory(): Promise<void> {
-  try {
-    const handle = await pickOutputDirectory()
-    dirHandle.value = handle
-    await rememberOutputDirectory(handle)
-    $q.notify({ type: 'positive', message: `Output folder set to "${handle.name}".` })
-  } catch (err) {
-    if (!isAbortError(err)) {
-      $q.notify({ type: 'negative', message: `Could not open folder: ${(err as Error).message}` })
-    }
-  }
-}
-
-async function forgetDirectory(): Promise<void> {
-  dirHandle.value = null
-  await clearOutputDirectory()
-}
-
-async function writeToDirectory(): Promise<void> {
-  const r = session.result
-  if (!r) return
-  if (!dirHandle.value) {
-    await chooseDirectory()
-  }
-  const handle = dirHandle.value
-  if (!handle) return
-  try {
-    if (!(await verifyPermission(handle, true))) {
-      $q.notify({ type: 'warning', message: 'Write permission to the folder was not granted.' })
-      return
-    }
-    await writeFileToDirectory(handle, r.filename, r.content)
-    if (r.unedited !== undefined) {
-      await writeFileToDirectory(handle, uneditedName(r.filename), r.unedited)
-    }
-    $q.notify({ type: 'positive', message: `Wrote ${r.filename} to "${handle.name}".` })
-  } catch (err) {
-    $q.notify({ type: 'negative', message: `Write failed: ${(err as Error).message}` })
-  }
-}
 </script>
 
 <template>
@@ -144,9 +69,13 @@ async function writeToDirectory(): Promise<void> {
           size="lg"
           icon="play_arrow"
           label="Generate"
+          :disable="!ready"
           :loading="session.running"
           @click="run"
         />
+        <div v-if="!ready" class="text-caption text-grey">
+          Load a chat log in Step 2 first.
+        </div>
         <div v-if="session.running && session.currentStage" class="text-caption text-grey">
           {{ session.currentStage }}…
         </div>
@@ -188,34 +117,15 @@ async function writeToDirectory(): Promise<void> {
           <q-chip icon="description" color="primary" text-color="white">
             {{ session.result.filename }}
           </q-chip>
+          <q-chip
+            v-if="session.result.writtenTo"
+            icon="folder"
+            color="positive"
+            text-color="white"
+          >
+            Saved to “{{ session.result.writtenTo }}”
+          </q-chip>
           <q-btn color="primary" icon="download" label="Download" @click="download" />
-          <q-btn
-            v-if="supportsSaveAs"
-            outline
-            color="primary"
-            icon="save_as"
-            label="Save as…"
-            @click="saveAs"
-          />
-          <template v-if="supportsDirectoryPicker">
-            <q-btn
-              outline
-              color="secondary"
-              icon="folder"
-              :label="dirHandle ? `Write to \u201c${dirHandle.name}\u201d` : 'Write to folder…'"
-              @click="writeToDirectory"
-            />
-            <q-btn
-              v-if="dirHandle"
-              flat
-              dense
-              icon="folder_off"
-              aria-label="Forget output folder"
-              @click="forgetDirectory"
-            >
-              <q-tooltip>Forget output folder ({{ dirHandle.name }})</q-tooltip>
-            </q-btn>
-          </template>
         </div>
 
         <q-expansion-item icon="preview" label="Preview" default-opened dense>

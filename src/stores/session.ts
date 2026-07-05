@@ -1,3 +1,4 @@
+import { markRaw } from 'vue'
 import { defineStore } from 'pinia'
 import type { Change } from 'diff'
 import { CHAT_CHANNELS } from '@/core/channels'
@@ -18,6 +19,8 @@ export interface RunResult {
   /** Pre-AI text, retained when "keep original" is enabled. */
   unedited?: string
   mime: string
+  /** Folder name the output was auto-written to (folder mode only). */
+  writtenTo?: string
 }
 
 export interface ChannelSummary {
@@ -30,6 +33,10 @@ export interface ChannelSummary {
 interface SessionState {
   files: InputFile[]
   lines: ChatLine[]
+  /** Connected working folder (File System Access mode); null in upload mode. */
+  workDir: FileSystemDirectoryHandle | null
+  /** Log files selected inside {@link workDir}; re-read fresh on every run. */
+  logHandles: FileSystemFileHandle[]
   running: boolean
   runStartedAt: number
   currentStage: string | null
@@ -42,6 +49,8 @@ export const useSessionStore = defineStore('session', {
   state: (): SessionState => ({
     files: [],
     lines: [],
+    workDir: null,
+    logHandles: [],
     running: false,
     runStartedAt: 0,
     currentStage: null,
@@ -71,7 +80,16 @@ export const useSessionStore = defineStore('session', {
       this.lines = parseFiles(files)
       this.result = null
       this.diffParts = null
-      this.log = []
+    },
+    /** markRaw: native handles must not be wrapped in reactive proxies. */
+    setWorkingDirectory(dir: FileSystemDirectoryHandle | null) {
+      this.workDir = dir === null ? null : markRaw(dir)
+      if (dir === null) {
+        this.logHandles = []
+      }
+    },
+    setLogHandles(handles: FileSystemFileHandle[]) {
+      this.logHandles = handles.map((h) => markRaw(h))
     },
     reset() {
       this.$reset()

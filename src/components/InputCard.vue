@@ -1,34 +1,27 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref, shallowRef } from 'vue'
 import { useQuasar } from 'quasar'
 import type { InputFile } from '@/core/types'
 import {
   isAbortError,
-  pickLogFiles,
-  supportsFilePickers,
+  listLogFiles,
+  pickWorkingDirectory,
+  supportsFileSystemAccess,
   verifyPermission,
 } from '@/fs/access'
-import { loadInputHandles, rememberInputHandles } from '@/fs/handles'
+import {
+  clearWorkingDirectory,
+  loadWorkingDirectory,
+  rememberWorkingDirectory,
+} from '@/fs/handles'
 import { useSessionStore } from '@/stores/session'
 
 const $q = useQuasar()
 const session = useSessionStore()
 
-const dragOver = ref(false)
-const fileModel = ref<File[] | null>(null)
-const hasStoredHandles = ref(false)
-
-onMounted(async () => {
-  if (supportsFilePickers) {
-    try {
-      const stored = await loadInputHandles()
-      hasStoredHandles.value = (stored?.length ?? 0) > 0
-    } catch {
-      hasStoredHandles.value = false
-    }
-  }
-})
-
+// ---------------------------------------------------------------------------
+// Shared ingest — both implementations end up here.
+// ---------------------------------------------------------------------------
 async function ingest(files: File[]): Promise<void> {
   if (files.length === 0) {
     return
@@ -54,6 +47,148 @@ async function ingest(files: File[]): Promise<void> {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Implementation 1: File System Access folder workflow (Chromium).
+// The user grants persistent read/write access to their logs folder once;
+// inputs are read from it and outputs are written straight back.
+// ---------------------------------------------------------------------------
+let dirHandle: FileSystemDirectoryHandle | null = null
+
+const folderName = ref<string | null>(null)
+const needsReconnect = ref(false)
+const scanning = ref(false)
+const folderFiles = shallowRef<FileSystemFileHandle[]>([])
+const selectedNames = ref<string[]>([])
+
+const fileOptions = computed(() => folderFiles.value.map((f) => f.name))
+
+onMounted(async () => {
+  if (!supportsFileSystemAccess) {
+    return
+  }
+  try {
+    const stored = await loadWorkingDirectory()
+    if (!stored) {
+      return
+    }
+    if ((await stored.queryPermission({ mode: 'readwrite' })) === 'granted') {
+      // Persistent permission ("Allow on every visit") — reconnect silently.
+      await adoptFolder(stored)
+    } else {
+      dirHandle = stored
+      folderName.value = stored.name
+      needsReconnect.value = true
+    }
+  } catch {
+    // Stored handle unusable (folder moved/deleted); start fresh.
+  }
+})
+
+async function adoptFolder(dir: FileSystemDirectoryHandle): Promise<void> {
+  dirHandle = dir
+  session.setWorkingDirectory(dir)
+  folderName.value = dir.name
+  needsReconnect.value = false
+  await rescan()
+}
+
+async function rescan(): Promise<void> {
+  if (!dirHandle) {
+    return
+  }
+  scanning.value = true
+  try {
+    const files = await listLogFiles(dirHandle)
+    folderFiles.value = files
+    const names = files.map((f) => f.name)
+    let selection = selectedNames.value.filter((n) => names.includes(n))
+    if (selection.length === 0) {
+      const chatLog = names.find((n) => n.toLowerCase() === 'chatlog.log')
+      if (chatLog) {
+        selection = [chatLog]
+      } else if (names.length === 1) {
+        selection = [names[0]!]
+      }
+    }
+    selectedNames.value = selection
+    if (files.length === 0) {
+      $q.notify({
+        type: 'warning',
+        message: `No .log or .txt files found in \u201c${dirHandle.name}\u201d.`,
+      })
+    }
+    await applySelection()
+  } catch (err) {
+    $q.notify({ type: 'negative', message: `Could not scan folder: ${(err as Error).message}` })
+  } finally {
+    scanning.value = false
+  }
+}
+
+async function applySelection(): Promise<void> {
+  const handles = folderFiles.value.filter((h) => selectedNames.value.includes(h.name))
+  session.setLogHandles(handles)
+  if (handles.length === 0) {
+    session.setFiles([])
+    return
+  }
+  try {
+    const files = await Promise.all(handles.map((h) => h.getFile()))
+    await ingest(files)
+  } catch (err) {
+    $q.notify({ type: 'negative', message: `Could not read file: ${(err as Error).message}` })
+  }
+}
+
+function onSelectionChange(value: string[] | null): void {
+  selectedNames.value = value ?? []
+  void applySelection()
+}
+
+async function chooseFolder(): Promise<void> {
+  try {
+    const dir = await pickWorkingDirectory()
+    await adoptFolder(dir)
+    await rememberWorkingDirectory(dir)
+  } catch (err) {
+    if (!isAbortError(err)) {
+      $q.notify({ type: 'negative', message: `Could not open folder: ${(err as Error).message}` })
+    }
+  }
+}
+
+async function reconnect(): Promise<void> {
+  if (!dirHandle) {
+    return
+  }
+  try {
+    if (await verifyPermission(dirHandle, true)) {
+      await adoptFolder(dirHandle)
+    } else {
+      $q.notify({ type: 'warning', message: 'Folder access was not granted.' })
+    }
+  } catch (err) {
+    $q.notify({ type: 'negative', message: `Could not reconnect: ${(err as Error).message}` })
+  }
+}
+
+async function forgetFolder(): Promise<void> {
+  dirHandle = null
+  folderName.value = null
+  needsReconnect.value = false
+  folderFiles.value = []
+  selectedNames.value = []
+  session.setWorkingDirectory(null)
+  session.setFiles([])
+  await clearWorkingDirectory()
+}
+
+// ---------------------------------------------------------------------------
+// Implementation 2: classic upload -> process -> download (all browsers).
+// ---------------------------------------------------------------------------
+const dragOver = ref(false)
+const fileModel = ref<File[] | null>(null)
+
 function onFileModel(value: File[] | File | null): void {
   if (value === null) {
     return
@@ -66,52 +201,91 @@ function onDrop(evt: DragEvent): void {
   const files = [...(evt.dataTransfer?.files ?? [])]
   void ingest(files)
 }
-
-async function openWithFsAccess(): Promise<void> {
-  try {
-    const handles = await pickLogFiles()
-    await rememberInputHandles(handles)
-    hasStoredHandles.value = true
-    const files = await Promise.all(handles.map((h) => h.getFile()))
-    await ingest(files)
-  } catch (err) {
-    if (!isAbortError(err)) {
-      $q.notify({ type: 'negative', message: `Could not open files: ${(err as Error).message}` })
-    }
-  }
-}
-
-async function reopenLast(): Promise<void> {
-  try {
-    const handles = await loadInputHandles()
-    if (!handles || handles.length === 0) {
-      hasStoredHandles.value = false
-      return
-    }
-    for (const handle of handles) {
-      if (!(await verifyPermission(handle, false))) {
-        $q.notify({ type: 'warning', message: 'Permission to re-read the log was not granted.' })
-        return
-      }
-    }
-    const files = await Promise.all(handles.map((h) => h.getFile()))
-    await ingest(files)
-  } catch (err) {
-    $q.notify({ type: 'negative', message: `Could not reopen log: ${(err as Error).message}` })
-  }
-}
 </script>
 
 <template>
   <q-card flat bordered>
     <q-card-section>
-      <div class="text-h6">Step 1 — Load chat logs</div>
+      <div class="text-h6">Step 2 — Chat log</div>
       <div class="text-caption text-grey">
-        Files are processed entirely in your browser.
+        <template v-if="supportsFileSystemAccess">
+          Grant access to the folder that holds your logs once — outputs are saved straight back
+          to it. Everything is processed locally in your browser.
+        </template>
+        <template v-else>
+          Upload a log below and download the result. Everything is processed locally in your
+          browser.
+        </template>
       </div>
     </q-card-section>
 
-    <q-card-section class="q-pt-none column q-gutter-sm">
+    <!-- Implementation 1: folder workflow (File System Access API). -->
+    <q-card-section v-if="supportsFileSystemAccess" class="q-pt-none column q-gutter-sm">
+      <div v-if="!folderName" class="row q-gutter-sm items-center">
+        <q-btn
+          color="primary"
+          icon="folder"
+          label="Choose your logs folder…"
+          @click="chooseFolder"
+        />
+        <div class="text-caption text-grey">
+          e.g. <code>Documents\Elder Scrolls Online\live\Logs</code>
+        </div>
+      </div>
+
+      <q-banner v-else-if="needsReconnect" dense rounded class="bg-warning text-dark">
+        Reconnect to your logs folder “{{ folderName }}” to continue.
+        <template #action>
+          <q-btn flat icon="history" label="Reconnect" @click="reconnect" />
+          <q-btn flat icon="folder" label="Choose another…" @click="chooseFolder" />
+          <q-btn flat icon="folder_off" label="Forget" @click="forgetFolder" />
+        </template>
+      </q-banner>
+
+      <template v-else>
+        <div class="row q-gutter-sm items-center">
+          <q-chip icon="folder_open" color="primary" text-color="white">
+            {{ folderName }}
+          </q-chip>
+          <q-btn
+            flat
+            dense
+            icon="refresh"
+            :loading="scanning"
+            aria-label="Rescan folder"
+            @click="rescan"
+          >
+            <q-tooltip>Rescan folder for log files</q-tooltip>
+          </q-btn>
+          <q-btn flat dense no-caps label="Change folder…" @click="chooseFolder" />
+          <q-btn
+            flat
+            dense
+            icon="folder_off"
+            aria-label="Forget folder"
+            @click="forgetFolder"
+          >
+            <q-tooltip>Forget this folder</q-tooltip>
+          </q-btn>
+        </div>
+
+        <q-select
+          :model-value="selectedNames"
+          :options="fileOptions"
+          multiple
+          use-chips
+          filled
+          dense
+          label="Log file(s) to process"
+          hint="ChatLog.log is selected automatically when present. Files are re-read fresh on every Generate."
+          style="max-width: 560px"
+          @update:model-value="onSelectionChange"
+        />
+      </template>
+    </q-card-section>
+
+    <!-- Implementation 2: upload/download fallback. -->
+    <q-card-section v-else class="q-pt-none column q-gutter-sm">
       <q-file
         :model-value="fileModel"
         multiple
@@ -136,26 +310,10 @@ async function reopenLast(): Promise<void> {
         <q-icon name="download" size="28px" class="q-mr-sm" />
         …or drag and drop files here
       </div>
+    </q-card-section>
 
-      <div v-if="supportsFilePickers" class="row q-gutter-sm">
-        <q-btn
-          outline
-          color="primary"
-          icon="folder_open"
-          label="Open with file access…"
-          @click="openWithFsAccess"
-        />
-        <q-btn
-          v-if="hasStoredHandles"
-          outline
-          color="secondary"
-          icon="history"
-          label="Reopen last log"
-          @click="reopenLast"
-        />
-      </div>
-
-      <q-banner v-if="session.hasInput" dense rounded class="bg-positive text-white">
+    <q-card-section v-if="session.hasInput" class="q-pt-none">
+      <q-banner dense rounded class="bg-positive text-white">
         Loaded {{ session.files.length }} file(s) —
         {{ session.lines.length.toLocaleString() }} chat lines across
         {{ session.channelSummaries.length }} channels.

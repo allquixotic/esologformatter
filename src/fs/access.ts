@@ -1,10 +1,11 @@
-// File System Access API helpers (Chromium) with graceful fallbacks.
+// File System Access API helpers (Chromium) with a universal download fallback.
 
-export const supportsFilePickers =
-  typeof window !== 'undefined' && 'showOpenFilePicker' in window
-export const supportsSaveAs =
-  typeof window !== 'undefined' && 'showSaveFilePicker' in window
-export const supportsDirectoryPicker =
+/**
+ * Single capability probe: when the browser can grant persistent read/write
+ * access to a folder we use the folder workflow; otherwise the classic
+ * upload -> process -> download flow. One UI, two implementations.
+ */
+export const supportsFileSystemAccess =
   typeof window !== 'undefined' && 'showDirectoryPicker' in window
 
 /** True when the user dismissed a picker (not a real failure). */
@@ -12,20 +13,24 @@ export function isAbortError(err: unknown): boolean {
   return err instanceof DOMException && err.name === 'AbortError'
 }
 
-export async function pickLogFiles(): Promise<FileSystemFileHandle[]> {
-  return window.showOpenFilePicker({
-    multiple: true,
-    types: [
-      {
-        description: 'ESO chat logs',
-        accept: { 'text/plain': ['.log', '.txt'] },
-      },
-    ],
-  })
+/** Ask for read/write access to the folder that holds the user's logs. */
+export async function pickWorkingDirectory(): Promise<FileSystemDirectoryHandle> {
+  return window.showDirectoryPicker({ id: 'esolog-folder', mode: 'readwrite' })
 }
 
-export async function pickOutputDirectory(): Promise<FileSystemDirectoryHandle> {
-  return window.showDirectoryPicker({ id: 'esolog-output', mode: 'readwrite' })
+/** List plausible chat log files (.log / .txt) directly inside a folder. */
+export async function listLogFiles(
+  dir: FileSystemDirectoryHandle,
+): Promise<FileSystemFileHandle[]> {
+  const files: FileSystemFileHandle[] = []
+  for await (const handle of dir.values()) {
+    if (handle.kind === 'file' && /\.(log|txt)$/i.test(handle.name)) {
+      files.push(handle)
+    }
+  }
+  const rank = (h: FileSystemFileHandle): number =>
+    h.name.toLowerCase() === 'chatlog.log' ? 0 : 1
+  return files.sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name))
 }
 
 /**
@@ -41,13 +46,6 @@ export async function verifyPermission(
     return true
   }
   return (await handle.requestPermission(opts)) === 'granted'
-}
-
-export async function saveTextAs(suggestedName: string, text: string): Promise<void> {
-  const handle = await window.showSaveFilePicker({ suggestedName })
-  const writable = await handle.createWritable()
-  await writable.write(text)
-  await writable.close()
 }
 
 export async function writeFileToDirectory(
