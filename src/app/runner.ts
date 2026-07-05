@@ -8,7 +8,7 @@ import { CHAT_CHANNELS } from '@/core/channels'
 import { defaultOutputName, uneditedName, type NamingContext } from '@/core/naming'
 import { runPipeline, type DateWindowMs } from '@/core/pipeline'
 import { validateDurationHours } from '@/core/presets'
-import { calculateEventWindow, effectiveWeeksAgo } from '@/core/schedule'
+import { calculateEventWindow, effectiveWeeksAgo, wallClockMs } from '@/core/schedule'
 import type { InputFile } from '@/core/types'
 import { verifyPermission, writeFileToDirectory } from '@/fs/access'
 import { correctText } from '@/llm/correction'
@@ -47,8 +47,10 @@ function resolveWindow(): ResolvedWindow {
     }
     const weeks = effectiveWeeksAgo(settings.weeksAgo, preset)
     const w = calculateEventWindow(preset, weeks, durationOverride)
+    // Compare in the viewer's local wall clock (rconv: Eastern -> Local ->
+    // naive string) because log timestamps carry unreliable fixed offsets.
     return {
-      window: { startMs: w.startMs, endMs: w.endMs },
+      window: { startMs: wallClockMs(w.start), endMs: wallClockMs(w.end) },
       naming: {
         dateMode: 'preset',
         format,
@@ -69,7 +71,7 @@ function resolveWindow(): ResolvedWindow {
       throw new RunError('Custom range end must be after its start.')
     }
     return {
-      window: { startMs: start.toMillis(), endMs: end.toMillis() },
+      window: { startMs: wallClockMs(start), endMs: wallClockMs(end) },
       naming: {
         dateMode: 'custom',
         format,

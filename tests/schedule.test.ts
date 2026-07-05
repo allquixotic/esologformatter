@@ -7,7 +7,7 @@ import {
   TUESDAY_7_PRESET_NAME,
   type PresetDefinition,
 } from '../src/core/presets'
-import { calculateEventWindow, effectiveWeeksAgo } from '../src/core/schedule'
+import { calculateEventWindow, effectiveWeeksAgo, wallClockMs } from '../src/core/schedule'
 
 function preset(name: string): PresetDefinition {
   const found = builtinPresets().find((p) => p.name === name)
@@ -66,6 +66,21 @@ describe('calculateEventWindow', () => {
     expect(w.fileDate).toBe('110125')
     expect(w.start.offset).toBe(-4 * 60) // still EDT
     expect(w.endMs - w.startMs).toBe(145 * 60_000)
+  })
+})
+
+describe('wallClockMs', () => {
+  // Saturday evening ET; most recent tp6 Friday is 2026-07-03 (EDT period).
+  const today = DateTime.fromISO('2026-07-04T22:00:00', { zone: 'America/New_York' })
+  const w = calculateEventWindow(preset(FRIDAY_6_PRESET_NAME), 0, undefined, today)
+
+  test('same zone keeps the wall-clock components', () => {
+    expect(w.fileDate).toBe('070326')
+    expect(wallClockMs(w.start, 'America/New_York')).toBe(Date.UTC(2026, 6, 3, 18, 0))
+  })
+
+  test('viewer in a different zone gets that zone\u2019s wall clock', () => {
+    expect(wallClockMs(w.start, 'America/Los_Angeles')).toBe(Date.UTC(2026, 6, 3, 15, 0))
   })
 })
 

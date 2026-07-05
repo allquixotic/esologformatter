@@ -23,6 +23,8 @@ export function parseChatLog(text: string, fileName: string, startIndex = 0): Ch
     out.push({
       timestamp: timestamp!,
       epochMs: dt.toMillis(),
+      // Wall clock as-if-UTC; dt.offset is the offset written in the log.
+      wallMs: dt.toMillis() + dt.offset * 60_000,
       channel: Number(channel),
       from: from!,
       message: message!,

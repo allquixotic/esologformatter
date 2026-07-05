@@ -72,3 +72,16 @@ export function calculateEventWindow(
 export function effectiveWeeksAgo(userWeeksAgo: number, preset: PresetDefinition): number {
   return userWeeksAgo === 0 ? preset.defaultWeeksAgo : userWeeksAgo
 }
+
+/**
+ * Wall-clock milliseconds of `dt` in `zone`: its local date/time components
+ * re-interpreted as UTC. ESO stamps ChatLog.log with the player's wall clock
+ * but a fixed, DST-ignorant UTC offset, so event windows are compared in this
+ * naive space against {@link ChatLine.wallMs} — mirroring rconv, which
+ * converts the window to the machine's local zone and compares naive
+ * `YYYY-MM-DDTHH:MM` strings (runtime.rs calculate_event_times).
+ */
+export function wallClockMs(dt: DateTime, zone = 'local'): number {
+  const z = dt.setZone(zone)
+  return z.toMillis() + z.offset * 60_000
+}

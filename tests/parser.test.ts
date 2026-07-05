@@ -13,6 +13,14 @@ describe('parseChatLog', () => {
     expect(lines[0]!.epochMs).toBe(Date.UTC(2025, 0, 5, 3, 0, 0, 0))
   })
 
+  test('wallMs keeps the wall clock even when the written offset is stale', () => {
+    // July is EDT (-04:00) but ESO stamps -05:00 year-round.
+    const log = '2026-07-03T18:01:46.796-05:00 14,@user,TP\n'
+    const lines = parseChatLog(log, 'c.log')
+    expect(lines[0]!.wallMs).toBe(Date.UTC(2026, 6, 3, 18, 1, 46, 796))
+    expect(lines[0]!.epochMs).toBe(Date.UTC(2026, 6, 3, 23, 1, 46, 796))
+  })
+
   test('handles CRLF and skips non-matching lines', () => {
     const log =
       'garbage line\r\n' +
