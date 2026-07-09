@@ -39,10 +39,11 @@ export function calculateEventWindow(
   durationMinutesOverride?: number,
   today: DateTime = DateTime.local(),
 ): EventWindow {
+  const eventToday = today.setZone(preset.timezone)
   const target = WEEKDAY_NUM[preset.weekday]
-  const todayNum = today.weekday // 1 = Monday .. 7 = Sunday
+  const todayNum = eventToday.weekday // 1 = Monday .. 7 = Sunday
   const daysSince = todayNum >= target ? todayNum - target : 7 - (target - todayNum)
-  const eventDate = today.minus({ days: daysSince, weeks: weeksAgo })
+  const eventDate = eventToday.minus({ days: daysSince, weeks: weeksAgo })
 
   const [hourStr, minuteStr] = preset.startTime.split(':')
   const start = DateTime.fromObject(

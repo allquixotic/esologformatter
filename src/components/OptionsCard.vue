@@ -1,14 +1,8 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { formatResolvedTimeWindow, resolveDateFilter } from '@/core/dateFilter'
 import { TIME_FORMAT_OPTIONS } from '@/core/formats/time'
-import { calculateEventWindow, effectiveWeeksAgo } from '@/core/schedule'
-import {
-  detectBrowserTimeZone,
-  isValidTimeZone,
-  projectWindowToLogTime,
-  resolveCustomTimeWindow,
-  type ResolvedTimeWindow,
-} from '@/core/timezones'
+import { detectBrowserTimeZone } from '@/core/timezones'
 import { useSettingsStore } from '@/stores/settings'
 import PresetManagerDialog from '@/components/PresetManagerDialog.vue'
 import TimezoneSelect from '@/components/TimezoneSelect.vue'
@@ -48,55 +42,41 @@ interface FilterPreviewState {
   error: string
 }
 
-function formatRange(start: ResolvedTimeWindow['sourceStart'], end: ResolvedTimeWindow['sourceEnd']): string {
-  return `${start.toFormat('ccc yyyy-MM-dd HH:mm')} → ${end.toFormat('ccc yyyy-MM-dd HH:mm')}`
-}
-
 const filterPreviewState = computed<FilterPreviewState>(() => {
   if (settings.dateMode === 'all') {
     return { preview: null, error: '' }
   }
-  if (!isValidTimeZone(settings.logTimezone)) {
-    return { preview: null, error: 'Choose a valid log-recording timezone.' }
+  if (settings.dateMode === 'custom' && settings.customStart === '' && settings.customEnd === '') {
+    return { preview: null, error: '' }
   }
 
   try {
-    let resolved: ResolvedTimeWindow
-    let sourceLabel: string
-    let filename: string | undefined
-
-    if (settings.dateMode === 'preset') {
-      const preset = settings.activePresetDef
-      if (!preset) {
-        return { preview: null, error: `Preset "${settings.activePreset}" not found.` }
-      }
-      const weeks = effectiveWeeksAgo(settings.weeksAgo, preset)
-      const override = settings.durationOverrideEnabled
-        ? Math.round(settings.durationOverrideHours * 60)
-        : undefined
-      const window = calculateEventWindow(preset, weeks, override)
-      resolved = projectWindowToLogTime(window.start, window.end, settings.logTimezone)
-      sourceLabel = 'Event time'
-      filename = `${preset.filePrefix}-${window.fileDate}`
-    } else {
-      if (settings.customStart === '' && settings.customEnd === '') {
-        return { preview: null, error: '' }
-      }
-      resolved = resolveCustomTimeWindow(
-        settings.customStart,
-        settings.customEnd,
-        settings.customRangeTimezone,
-        settings.logTimezone,
-      )
-      sourceLabel = 'Custom range'
+    const resolved = resolveDateFilter({
+      mode: settings.dateMode,
+      logTimezone: settings.logTimezone,
+      preset: settings.activePresetDef,
+      presetName: settings.activePreset,
+      weeksAgo: settings.weeksAgo,
+      durationOverrideEnabled: settings.durationOverrideEnabled,
+      durationOverrideHours: settings.durationOverrideHours,
+      customStart: settings.customStart,
+      customEnd: settings.customEnd,
+      customRangeTimezone: settings.customRangeTimezone,
+    })
+    if (!resolved.zonedWindow) {
+      return { preview: null, error: '' }
     }
+    const text = formatResolvedTimeWindow(resolved.zonedWindow)
 
     return {
       preview: {
-        sourceLabel,
-        sourceRange: `${formatRange(resolved.sourceStart, resolved.sourceEnd)} (${resolved.sourceTimezone})`,
-        rawLogRange: `${formatRange(resolved.logStart, resolved.logEnd)} (${resolved.logTimezone})`,
-        filename,
+        sourceLabel: settings.dateMode === 'preset' ? 'Event time' : 'Custom range',
+        sourceRange: text.sourceRange,
+        rawLogRange: text.rawLogRange,
+        filename:
+          resolved.filePrefix && resolved.fileDate
+            ? `${resolved.filePrefix}-${resolved.fileDate}`
+            : undefined,
       },
       error: '',
     }

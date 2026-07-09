@@ -3,12 +3,11 @@
 // failure falls back to the uncorrected text) and compute a diff.
 
 import { diffLines, type Change } from 'diff'
-import { DateTime } from 'luxon'
 import { CHAT_CHANNELS } from '@/core/channels'
+import { formatResolvedTimeWindow, resolveDateFilter } from '@/core/dateFilter'
 import { defaultOutputName, uneditedName, type NamingContext } from '@/core/naming'
 import { runPipeline, type DateWindowMs } from '@/core/pipeline'
-import { validateDurationHours } from '@/core/presets'
-import { calculateEventWindow, effectiveWeeksAgo, wallClockMs } from '@/core/schedule'
+import { detectBrowserTimeZone } from '@/core/timezones'
 import type { InputFile } from '@/core/types'
 import { verifyPermission, writeFileToDirectory } from '@/fs/access'
 import { correctText } from '@/llm/correction'
@@ -25,67 +24,74 @@ export class RunError extends Error {}
 interface ResolvedWindow {
   window: DateWindowMs | null
   naming: NamingContext
-  description: string
+  descriptions: string[]
 }
 
 function resolveWindow(): ResolvedWindow {
   const settings = useSettingsStore()
   const format = settings.outputFormat
+  let resolved
+  try {
+    resolved = resolveDateFilter({
+      mode: settings.dateMode,
+      logTimezone: settings.logTimezone,
+      preset: settings.activePresetDef,
+      presetName: settings.activePreset,
+      weeksAgo: settings.weeksAgo,
+      durationOverrideEnabled: settings.durationOverrideEnabled,
+      durationOverrideHours: settings.durationOverrideHours,
+      customStart: settings.customStart,
+      customEnd: settings.customEnd,
+      customRangeTimezone: settings.customRangeTimezone,
+    })
+  } catch (error) {
+    throw new RunError((error as Error).message)
+  }
+
+  const descriptions = [
+    `Browser timezone (context only): ${detectBrowserTimeZone()}`,
+    `Log-recording timezone: ${settings.logTimezone}`,
+  ]
 
   if (settings.dateMode === 'preset') {
-    const preset = settings.activePresetDef
-    if (!preset) {
-      throw new RunError(`Preset "${settings.activePreset}" not found.`)
-    }
-    let durationOverride: number | undefined
-    if (settings.durationOverrideEnabled) {
-      const problem = validateDurationHours(settings.durationOverrideHours)
-      if (problem) {
-        throw new RunError(problem)
-      }
-      durationOverride = Math.round(settings.durationOverrideHours * 60)
-    }
-    const weeks = effectiveWeeksAgo(settings.weeksAgo, preset)
-    const w = calculateEventWindow(preset, weeks, durationOverride)
-    // Compare in the viewer's local wall clock (rconv: Eastern -> Local ->
-    // naive string) because log timestamps carry unreliable fixed offsets.
+    const window = resolved.zonedWindow!
+    const text = formatResolvedTimeWindow(window)
+    descriptions.push(`Event window: ${text.sourceRange}`)
+    descriptions.push(`Effective raw-log filter: ${text.rawLogRange} (inclusive to minute)`)
     return {
-      window: { startMs: wallClockMs(w.start), endMs: wallClockMs(w.end) },
+      window: resolved.window,
       naming: {
         dateMode: 'preset',
         format,
-        filePrefix: preset.filePrefix,
-        fileDate: w.fileDate,
+        filePrefix: resolved.filePrefix!,
+        fileDate: resolved.fileDate!,
       },
-      description: `Processing window: ${w.start.toFormat("yyyy-MM-dd'T'HH:mm")} → ${w.end.toFormat("yyyy-MM-dd'T'HH:mm")} (${preset.timezone})`,
+      descriptions,
     }
   }
 
   if (settings.dateMode === 'custom') {
-    const start = DateTime.fromISO(settings.customStart)
-    const end = DateTime.fromISO(settings.customEnd)
-    if (!start.isValid || !end.isValid) {
-      throw new RunError('Custom date range requires valid start and end times.')
-    }
-    if (end.toMillis() < start.toMillis()) {
-      throw new RunError('Custom range end must be after its start.')
-    }
+    const window = resolved.zonedWindow!
+    const text = formatResolvedTimeWindow(window)
+    descriptions.push(`Custom range: ${text.sourceRange}`)
+    descriptions.push(`Effective raw-log filter: ${text.rawLogRange} (inclusive to minute)`)
     return {
-      window: { startMs: wallClockMs(start), endMs: wallClockMs(end) },
+      window: resolved.window,
       naming: {
         dateMode: 'custom',
         format,
         startIso: settings.customStart,
         endIso: settings.customEnd,
       },
-      description: `Processing window: ${settings.customStart} → ${settings.customEnd} (local time)`,
+      descriptions,
     }
   }
 
+  descriptions.push('Processing entire log (no start/end filter)')
   return {
     window: null,
     naming: { dateMode: 'all', format },
-    description: 'Processing entire log (no start/end filter)',
+    descriptions,
   }
 }
 
@@ -161,8 +167,10 @@ export async function generate(): Promise<void> {
     }
 
     session.beginStage('Calculate date filters')
-    const { window, naming, description } = resolveWindow()
-    session.note(description)
+    const { window, naming, descriptions } = resolveWindow()
+    for (const description of descriptions) {
+      session.note(description)
+    }
     const filename = defaultOutputName(naming)
     session.note(`Output file: ${filename}`)
     session.endStage('Calculate date filters')
