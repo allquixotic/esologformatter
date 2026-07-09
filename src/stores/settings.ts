@@ -3,6 +3,7 @@ import { Dark } from 'quasar'
 import type { TimeFormat } from '@/core/formats/time'
 import type { OutputFormat } from '@/core/pipeline'
 import { builtinPresets, validatePreset, type PresetDefinition } from '@/core/presets'
+import { detectBrowserTimeZone } from '@/core/timezones'
 
 export type ThemePreference = 'dark' | 'light' | 'system'
 export type DateMode = 'all' | 'preset' | 'custom'
@@ -17,9 +18,12 @@ export interface SettingsState {
   weeksAgo: number
   durationOverrideEnabled: boolean
   durationOverrideHours: number
-  /** Custom range bounds, `YYYY-MM-DDTHH:mm` in the viewer's local timezone. */
+  /** Timezone of the computer that recorded raw log wall-clock timestamps. */
+  logTimezone: string
+  /** Custom range bounds, `YYYY-MM-DDTHH:mm`, interpreted in customRangeTimezone. */
   customStart: string
   customEnd: string
+  customRangeTimezone: string
   timeFormat: TimeFormat
   outputFormat: OutputFormat
   sortByTime: boolean
@@ -44,7 +48,7 @@ export interface SettingsState {
 
 const STORAGE_KEY = 'esologformatter.settings.v1'
 
-function defaults(): SettingsState {
+function defaults(browserTimezone = detectBrowserTimeZone()): SettingsState {
   return {
     theme: 'dark',
     dateMode: 'all',
@@ -53,8 +57,10 @@ function defaults(): SettingsState {
     weeksAgo: 0,
     durationOverrideEnabled: false,
     durationOverrideHours: 1.0,
+    logTimezone: browserTimezone,
     customStart: '',
     customEnd: '',
+    customRangeTimezone: browserTimezone,
     timeFormat: 'friendly',
     outputFormat: 'plain',
     sortByTime: false,
@@ -75,17 +81,24 @@ function defaults(): SettingsState {
   }
 }
 
+/** Merge old/new persisted payloads while defaulting missing zone roles to browser context. */
+export function mergeStoredSettings(
+  persisted: Partial<SettingsState>,
+  browserTimezone = detectBrowserTimeZone(),
+): SettingsState {
+  return { ...defaults(browserTimezone), ...persisted }
+}
+
 function loadState(): SettingsState {
-  const base = defaults()
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) {
-      return base
+      return defaults()
     }
     const parsed = JSON.parse(raw) as Partial<SettingsState>
-    return { ...base, ...parsed }
+    return mergeStoredSettings(parsed)
   } catch {
-    return base
+    return defaults()
   }
 }
 

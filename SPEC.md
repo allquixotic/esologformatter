@@ -29,7 +29,7 @@ V8: Eastern event + Central log resolves one hour earlier and selects full inten
 §T
 id|status|task|cites
 T1|x|Add explicit zone model, shared resolver, regression tests|V1,V2,V4,V5,V8,I.zones
-T2|.|Persist zone settings and build three-zone options UI|V6,V7,I.settings,I.options
+T2|x|Persist zone settings and build three-zone options UI|V6,V7,I.settings,I.options
 T3|.|Use shared resolver in processing and technical log|V1,V2,V3,V4,I.runner
 T4|.|Run full automated and rendered QA|V1,V2,V3,V4,V5,V6,V7,V8
 

@@ -2,11 +2,20 @@
 import { computed, ref } from 'vue'
 import { TIME_FORMAT_OPTIONS } from '@/core/formats/time'
 import { calculateEventWindow, effectiveWeeksAgo } from '@/core/schedule'
+import {
+  detectBrowserTimeZone,
+  isValidTimeZone,
+  projectWindowToLogTime,
+  resolveCustomTimeWindow,
+  type ResolvedTimeWindow,
+} from '@/core/timezones'
 import { useSettingsStore } from '@/stores/settings'
 import PresetManagerDialog from '@/components/PresetManagerDialog.vue'
+import TimezoneSelect from '@/components/TimezoneSelect.vue'
 
 const settings = useSettingsStore()
 const showPresetManager = ref(false)
+const browserTimezone = detectBrowserTimeZone()
 
 const formatOptions = [
   { label: 'Plain Text', value: 'plain' },
@@ -27,22 +36,78 @@ const presetOptions = computed(() =>
   })),
 )
 
-const schedulePreview = computed(() => {
-  const preset = settings.activePresetDef
-  if (!preset || settings.dateMode !== 'preset') {
-    return ''
+interface FilterPreview {
+  sourceLabel: string
+  sourceRange: string
+  rawLogRange: string
+  filename?: string
+}
+
+interface FilterPreviewState {
+  preview: FilterPreview | null
+  error: string
+}
+
+function formatRange(start: ResolvedTimeWindow['sourceStart'], end: ResolvedTimeWindow['sourceEnd']): string {
+  return `${start.toFormat('ccc yyyy-MM-dd HH:mm')} → ${end.toFormat('ccc yyyy-MM-dd HH:mm')}`
+}
+
+const filterPreviewState = computed<FilterPreviewState>(() => {
+  if (settings.dateMode === 'all') {
+    return { preview: null, error: '' }
   }
+  if (!isValidTimeZone(settings.logTimezone)) {
+    return { preview: null, error: 'Choose a valid log-recording timezone.' }
+  }
+
   try {
-    const weeks = effectiveWeeksAgo(settings.weeksAgo, preset)
-    const override = settings.durationOverrideEnabled
-      ? Math.round(settings.durationOverrideHours * 60)
-      : undefined
-    const w = calculateEventWindow(preset, weeks, override)
-    return `${w.start.toFormat('EEE yyyy-MM-dd HH:mm')} → ${w.end.toFormat('EEE yyyy-MM-dd HH:mm')} ${preset.timezone} · files: ${preset.filePrefix}-${w.fileDate}`
-  } catch {
-    return ''
+    let resolved: ResolvedTimeWindow
+    let sourceLabel: string
+    let filename: string | undefined
+
+    if (settings.dateMode === 'preset') {
+      const preset = settings.activePresetDef
+      if (!preset) {
+        return { preview: null, error: `Preset "${settings.activePreset}" not found.` }
+      }
+      const weeks = effectiveWeeksAgo(settings.weeksAgo, preset)
+      const override = settings.durationOverrideEnabled
+        ? Math.round(settings.durationOverrideHours * 60)
+        : undefined
+      const window = calculateEventWindow(preset, weeks, override)
+      resolved = projectWindowToLogTime(window.start, window.end, settings.logTimezone)
+      sourceLabel = 'Event time'
+      filename = `${preset.filePrefix}-${window.fileDate}`
+    } else {
+      if (settings.customStart === '' && settings.customEnd === '') {
+        return { preview: null, error: '' }
+      }
+      resolved = resolveCustomTimeWindow(
+        settings.customStart,
+        settings.customEnd,
+        settings.customRangeTimezone,
+        settings.logTimezone,
+      )
+      sourceLabel = 'Custom range'
+    }
+
+    return {
+      preview: {
+        sourceLabel,
+        sourceRange: `${formatRange(resolved.sourceStart, resolved.sourceEnd)} (${resolved.sourceTimezone})`,
+        rawLogRange: `${formatRange(resolved.logStart, resolved.logEnd)} (${resolved.logTimezone})`,
+        filename,
+      },
+      error: '',
+    }
+  } catch (error) {
+    return { preview: null, error: (error as Error).message }
   }
 })
+
+function useBrowserForLog(): void {
+  settings.logTimezone = browserTimezone
+}
 </script>
 
 <template>
@@ -78,6 +143,59 @@ const schedulePreview = computed(() => {
           unelevated
           no-caps
         />
+      </div>
+
+      <div class="timezone-context rounded-borders q-pa-md">
+        <div class="text-subtitle2">Timezone context</div>
+        <div class="text-caption text-grey q-mb-sm">
+          Event/range time defines intent. Log-recording time matches timestamps written in the
+          file. Browser time is context only.
+        </div>
+        <div class="timezone-grid">
+          <div class="timezone-readout">
+            <div class="text-caption text-grey">Browser timezone</div>
+            <div class="text-body2 text-weight-medium">{{ browserTimezone }}</div>
+            <div class="text-caption text-grey">Detected from this browser · read-only</div>
+          </div>
+
+          <div>
+            <TimezoneSelect
+              v-model="settings.logTimezone"
+              label="Log-recording timezone"
+              hint="Timezone of the computer that created this log"
+            />
+            <q-btn
+              v-if="settings.logTimezone !== browserTimezone"
+              flat
+              dense
+              no-caps
+              color="secondary"
+              label="Use browser timezone"
+              class="q-mt-xs"
+              @click="useBrowserForLog"
+            />
+          </div>
+
+          <TimezoneSelect
+            v-if="settings.dateMode === 'custom'"
+            v-model="settings.customRangeTimezone"
+            label="Custom-range timezone"
+            hint="Timezone used to interpret custom start and end"
+          />
+          <div v-else class="timezone-readout">
+            <div class="text-caption text-grey">Event/range timezone</div>
+            <div class="text-body2 text-weight-medium">
+              {{
+                settings.dateMode === 'preset'
+                  ? (settings.activePresetDef?.timezone ?? 'Preset unavailable')
+                  : 'Not used'
+              }}
+            </div>
+            <div class="text-caption text-grey">
+              {{ settings.dateMode === 'preset' ? 'Defined by selected preset' : 'No date filter' }}
+            </div>
+          </div>
+        </div>
       </div>
 
       <div v-if="settings.dateMode === 'preset'" class="column q-gutter-sm">
@@ -125,9 +243,6 @@ const schedulePreview = computed(() => {
             style="width: 140px"
           />
         </div>
-        <q-banner v-if="schedulePreview" dense rounded class="bg-grey-9 text-white">
-          <q-icon name="schedule" class="q-mr-sm" />{{ schedulePreview }}
-        </q-banner>
       </div>
 
       <div v-if="settings.dateMode === 'custom'" class="row q-gutter-sm">
@@ -135,7 +250,7 @@ const schedulePreview = computed(() => {
           v-model="settings.customStart"
           filled
           dense
-          label="Start (local)"
+          label="Start (custom-range time)"
           placeholder="YYYY-MM-DDTHH:mm"
           style="min-width: 240px"
         >
@@ -158,7 +273,7 @@ const schedulePreview = computed(() => {
           v-model="settings.customEnd"
           filled
           dense
-          label="End (local)"
+          label="End (custom-range time)"
           placeholder="YYYY-MM-DDTHH:mm"
           style="min-width: 240px"
         >
@@ -178,6 +293,35 @@ const schedulePreview = computed(() => {
           </template>
         </q-input>
       </div>
+
+      <q-banner
+        v-if="filterPreviewState.preview"
+        dense
+        rounded
+        class="effective-range bg-grey-9 text-white"
+      >
+        <div>
+          <q-icon name="event" class="q-mr-sm" />
+          <strong>{{ filterPreviewState.preview.sourceLabel }}:</strong>
+          {{ filterPreviewState.preview.sourceRange }}
+        </div>
+        <div>
+          <q-icon name="filter_alt" class="q-mr-sm" />
+          <strong>Effective raw-log filter:</strong>
+          {{ filterPreviewState.preview.rawLogRange }} · inclusive to minute
+        </div>
+        <div v-if="filterPreviewState.preview.filename" class="text-caption q-mt-xs">
+          Output prefix: {{ filterPreviewState.preview.filename }}
+        </div>
+      </q-banner>
+      <q-banner
+        v-else-if="filterPreviewState.error"
+        dense
+        rounded
+        class="bg-negative text-white"
+      >
+        <q-icon name="error" class="q-mr-sm" />{{ filterPreviewState.error }}
+      </q-banner>
 
       <div class="row q-gutter-md items-center">
         <q-select
@@ -203,3 +347,33 @@ const schedulePreview = computed(() => {
     <PresetManagerDialog v-model="showPresetManager" />
   </q-card>
 </template>
+
+<style scoped>
+.timezone-context {
+  border: 1px solid rgba(128, 128, 128, 0.35);
+}
+
+.timezone-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  align-items: start;
+}
+
+.timezone-readout {
+  min-height: 56px;
+  padding: 8px 12px;
+  border: 1px solid rgba(128, 128, 128, 0.35);
+  border-radius: 4px;
+}
+
+.effective-range > div + div {
+  margin-top: 4px;
+}
+
+@media (max-width: 700px) {
+  .timezone-grid {
+    grid-template-columns: 1fr;
+  }
+}
+</style>
