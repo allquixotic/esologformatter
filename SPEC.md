@@ -25,14 +25,16 @@ V5: Stale timestamp offsets never shift filtering; existing wall-clock regressio
 V6: Missing persisted zone fields default to detected browser zone without losing old settings.
 V7: UI shows all three zone roles plus exact inclusive raw-log range before preset/custom processing.
 V8: Eastern event + Central log resolves one hour earlier and selects full intended window, not final overlap only.
+V9: At 390px, timezone roles stack without page-level horizontal overflow.
 
 §T
 id|status|task|cites
 T1|x|Add explicit zone model, shared resolver, regression tests|V1,V2,V4,V5,V8,I.zones
 T2|x|Persist zone settings and build three-zone options UI|V6,V7,I.settings,I.options
 T3|x|Use shared resolver in processing and technical log|V1,V2,V3,V4,I.runner
-T4|.|Run full automated and rendered QA|V1,V2,V3,V4,V5,V6,V7,V8
+T4|x|Run full automated and rendered QA|V1,V2,V3,V4,V5,V6,V7,V8,V9
 
 §B
 id|date|cause|fix
 B1|n/a|implicit browser zone stood in for log-recording zone and shifted shared-log filters|V8
+B2|n/a|unwrapped option controls forced the Options card wider than a narrow viewport|V9

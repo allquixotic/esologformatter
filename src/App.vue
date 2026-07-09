@@ -82,7 +82,7 @@ onMounted(async () => {
 
     <q-page-container>
       <q-page padding>
-        <div class="column q-gutter-md q-mx-auto" style="max-width: 1100px">
+        <div class="app-flow column q-gutter-y-md q-mx-auto">
           <!-- rconv-style flow: configure everything up front, then pick the log. -->
           <InstructionsCard />
           <OptionsCard />
@@ -95,3 +95,16 @@ onMounted(async () => {
     </q-page-container>
   </q-layout>
 </template>
+
+<style scoped>
+.app-flow {
+  width: 100%;
+  max-width: 1100px;
+  min-width: 0;
+}
+
+.app-flow > * {
+  min-width: 0;
+  max-width: 100%;
+}
+</style>
