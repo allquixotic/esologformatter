@@ -9,6 +9,7 @@ C4: Persist user-selected zones. Validate IANA names. Never silently replace inv
 C5: Browser zone is detected, read-only context. It must not override explicit log zone.
 C6: Existing presets keep their event timezone and naming behavior.
 C7: Timezone UI must remain usable on desktop and narrow viewports.
+C8: Use official TypeScript 7 compiler; keep official TypeScript 6 compatibility API for vue-tsc and typescript-eslint until they support native API.
 
 §I
 I.settings: SettingsState adds logTimezone and customRangeTimezone.
@@ -38,3 +39,5 @@ T4|x|Run full automated and rendered QA|V1,V2,V3,V4,V5,V6,V7,V8,V9
 id|date|cause|fix
 B1|n/a|implicit browser zone stood in for log-recording zone and shifted shared-log filters|V8
 B2|n/a|unwrapped option controls forced the Options card wider than a narrow viewport|V9
+B3|2026-10-25|typecheck ran only vue-tsc; direct tsc could not resolve Vue imports|declare Vue modules; run official tsc and vue-tsc together
+B4|2026-10-25|TypeScript 7 removed compiler API required by vue-tsc and typescript-eslint|C8; Microsoft-documented package aliases
