@@ -5,43 +5,12 @@
 import OpenAI from 'openai'
 import { buildCorrectionPrompt } from './correction'
 import type { CorrectOpts, CorrectionProvider } from './types'
+import { fetchOpenRouterModels, OPENROUTER_BASE_URL } from './models'
+export { fetchOpenRouterModels, OPENROUTER_BASE_URL } from './models'
 
-export const OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1'
-/** rconv DEFAULT_OPENROUTER_MODEL. */
-export const DEFAULT_OPENROUTER_MODEL = 'google/gemini-2.5-flash-lite'
-
-export interface OpenRouterModelInfo {
-  id: string
-  name: string
-  contextLength?: number
-  /** Per-token prices as decimal strings ("0" = free). */
-  promptPrice: string
-  completionPrice: string
-}
-
-interface RawModelsResponse {
-  data?: {
-    id: string
-    name?: string
-    context_length?: number | null
-    pricing?: { prompt?: string; completion?: string }
-  }[]
-}
-
-/** Fetch the live OpenRouter model list (no auth required). */
-export async function fetchOpenRouterModels(signal?: AbortSignal): Promise<OpenRouterModelInfo[]> {
-  const res = await fetch(`${OPENROUTER_BASE_URL}/models`, { signal })
-  if (!res.ok) {
-    throw new Error(`Failed to fetch models: HTTP ${res.status}`)
-  }
-  const body = (await res.json()) as RawModelsResponse
-  return (body.data ?? []).map((m) => ({
-    id: m.id,
-    name: m.name ?? m.id,
-    contextLength: m.context_length ?? undefined,
-    promptPrice: m.pricing?.prompt ?? '',
-    completionPrice: m.pricing?.completion ?? '',
-  }))
+interface ProviderOptions {
+  freeOnly?: boolean
+  supportedParameters?: string[]
 }
 
 /** Chat-completions correction provider backed by OpenRouter. */
@@ -51,7 +20,7 @@ export class OpenRouterProvider implements CorrectionProvider {
   private readonly model: string
   private readonly knownContextLength: number | undefined
 
-  constructor(apiKey: string, model: string, knownContextLength?: number) {
+  constructor(apiKey: string, model: string, knownContextLength?: number, private readonly options: ProviderOptions = {}) {
     this.model = model
     this.knownContextLength = knownContextLength
     this.label = `OpenRouter (${model})`
@@ -79,7 +48,10 @@ export class OpenRouterProvider implements CorrectionProvider {
       {
         model: this.model,
         messages: [{ role: 'user', content: buildCorrectionPrompt(chunk) }],
-        temperature: opts.temperature,
+        ...(this.options.supportedParameters === undefined || this.options.supportedParameters.includes('temperature')
+          ? { temperature: opts.temperature } : {}),
+        // OpenRouter extension: enforce the free-only choice even if provider pricing changes.
+        ...(this.options.freeOnly ? { provider: { max_price: { prompt: 0, completion: 0, request: 0 } } } : {}),
       },
       { signal: opts.signal },
     )

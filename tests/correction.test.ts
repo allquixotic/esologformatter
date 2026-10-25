@@ -82,13 +82,16 @@ describe('correctText', () => {
 describe('resolveModel', () => {
   const catalog: CuratedCatalog = {
     free: [
-      { slug: 'f/one:free', displayName: 'Free One', provider: 'f', tier: 'free', aaii: 10 },
+      { slug: 'f/one:free', displayName: 'Free One', provider: 'f', tier: 'free', aaii: 10,
+        priceInPerMillion: 0, priceOutPerMillion: 0, pricePerRequest: 0, contextLength: 32_768, supportedParameters: [] },
     ],
     cheap: [
-      { slug: 'c/two', displayName: 'Cheap Two', provider: 'c', tier: 'cheap', aaii: 20 },
+      { slug: 'c/two', displayName: 'Cheap Two', provider: 'c', tier: 'cheap', aaii: 20,
+        priceInPerMillion: 1, priceOutPerMillion: 2, pricePerRequest: 0, contextLength: 32_768, supportedParameters: [] },
     ],
     generatedAt: 'now',
-    source: 'bundled',
+    source: 'live',
+    paid: [],
   }
 
   test('auto picks first cheap entry', () => {
@@ -99,13 +102,11 @@ describe('resolveModel', () => {
     expect(resolveModel('auto', true, catalog).modelSlug).toBe('f/one:free')
   })
 
-  test('auto without catalog falls back to default model', () => {
-    expect(resolveModel('auto', false, null).modelSlug).toBe('google/gemini-2.5-flash-lite')
+  test('auto without catalog reports an error', () => {
+    expect(() => resolveModel('auto', false, null)).toThrow('model list unavailable')
   })
 
-  test('explicit slug is used even when not curated', () => {
-    const r = resolveModel('someorg/custom-model', false, catalog)
-    expect(r.modelSlug).toBe('someorg/custom-model')
-    expect(r.entry).toBeNull()
+  test('explicit slug must be available', () => {
+    expect(() => resolveModel('someorg/custom-model', false, catalog)).toThrow('no longer available')
   })
 })

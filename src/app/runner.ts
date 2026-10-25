@@ -117,10 +117,11 @@ async function makeProvider(onNote: (message: string) => void): Promise<Correcti
     onNote('Warning: OpenRouter API key not configured; skipping AI corrections.')
     return null
   }
-  const catalog = await loadCuratedCatalog().catch(() => null)
-  if (catalog) {
-    onNote(`Curated model snapshot loaded (${catalog.source}).`)
+  if (settings.modelMode !== 'auto' && !settings.modelId.trim()) {
+    throw new Error('Choose a model or use Automatic.')
   }
+  const catalog = await loadCuratedCatalog()
+  onNote('Current OpenRouter models loaded.')
   const preference = settings.modelMode === 'auto' ? 'auto' : settings.modelId
   const resolution = resolveModel(preference, settings.freeModelsOnly, catalog)
   onNote(resolution.note)
@@ -128,6 +129,7 @@ async function makeProvider(onNote: (message: string) => void): Promise<Correcti
     settings.openrouterApiKey!,
     resolution.modelSlug,
     resolution.entry?.contextLength,
+    { freeOnly: settings.freeModelsOnly, supportedParameters: resolution.entry.supportedParameters },
   )
 }
 
@@ -204,23 +206,24 @@ export async function generate(): Promise<void> {
     const aiApplies = settings.useAi && settings.outputFormat !== 'table'
     if (aiApplies) {
       session.beginStage('Apply LLM corrections')
-      const provider = await makeProvider((m) => session.note(m))
-      if (provider) {
-        unedited = content
-        try {
+      let provider: CorrectionProvider | null = null
+      try {
+        provider = await makeProvider((m) => session.note(m))
+        if (provider) {
+          unedited = content
           finalContent = await correctText(provider, content, {
             onProgress: (m) => session.note(m),
           })
           session.note(`Applied ${provider.label} grammar and spelling corrections`)
-        } catch (err) {
-          session.error(
-            `Warning: Could not apply AI corrections: ${(err as Error).message}. Using original text.`,
-          )
-          finalContent = content
-          unedited = undefined
-        } finally {
-          await provider.dispose?.()
         }
+      } catch (err) {
+        session.error(
+          `Warning: Could not apply AI corrections: ${(err as Error).message}. Using original text.`,
+        )
+        finalContent = content
+        unedited = undefined
+      } finally {
+        await provider?.dispose?.()
       }
       session.endStage('Apply LLM corrections')
 

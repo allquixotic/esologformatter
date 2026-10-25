@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useQuasar } from 'quasar'
-import { allEntries, loadCuratedCatalog, type CuratedCatalog, type CuratedEntry } from '@/llm/curated'
+import { allEntries, loadCuratedCatalog, resolveModel, type CuratedCatalog, type CuratedEntry } from '@/llm/curated'
 import { startOAuthLogin } from '@/llm/openrouter'
 import { promptApiAvailability, type PromptApiAvailability } from '@/llm/promptApi'
 import { useSettingsStore } from '@/stores/settings'
@@ -10,17 +10,31 @@ const $q = useQuasar()
 const settings = useSettingsStore()
 
 const catalog = ref<CuratedCatalog | null>(null)
+const loadingModels = ref(false)
+const catalogError = ref('')
+const modelSearch = ref('')
 const promptAvail = ref<PromptApiAvailability>('unsupported')
 const manualKey = ref('')
 const showManualKey = ref(false)
 
-onMounted(async () => {
-  promptAvail.value = await promptApiAvailability()
+async function refreshModels(): Promise<void> {
+  if (loadingModels.value) return
+  loadingModels.value = true
+  catalogError.value = ''
+  catalog.value = null
   try {
     catalog.value = await loadCuratedCatalog()
-  } catch {
-    catalog.value = null
+  } catch (err) {
+    catalogError.value = `Could not load models: ${(err as Error).message}`
+  } finally {
+    loadingModels.value = false
   }
+}
+
+onMounted(() => {
+  void refreshModels()
+  void promptApiAvailability().then((availability) => { promptAvail.value = availability })
+    .catch(() => { promptAvail.value = 'unavailable' })
 })
 
 const providerOptions = computed(() => [
@@ -34,18 +48,20 @@ const providerOptions = computed(() => [
 
 const modelModeOptions = [
   { label: 'Automatic', value: 'auto' },
-  { label: 'Curated list', value: 'curated' },
+  { label: 'Model list', value: 'curated' },
   { label: 'Manual', value: 'manual' },
 ]
 
 function entryCaption(e: CuratedEntry): string {
-  const parts = [`tier: ${e.tier}`, `AAII ${e.aaii.toFixed(1)}`]
+  const parts = [e.tier === 'cheap' ? 'Low cost' : e.tier === 'free' ? 'Free' : 'Paid',
+    e.aaii === undefined ? 'Not benchmarked' : `AA intelligence ${e.aaii.toFixed(1)}`]
   if (e.priceInPerMillion !== undefined && e.priceOutPerMillion !== undefined) {
     parts.push(`$${e.priceInPerMillion}/M in · $${e.priceOutPerMillion}/M out`)
   }
   if (e.contextLength !== undefined) {
     parts.push(`${Math.round(e.contextLength / 1024)}k ctx`)
   }
+  if (e.pricePerRequest > 0) parts.push(`$${e.pricePerRequest}/request`)
   return parts.join(' · ')
 }
 
@@ -57,11 +73,31 @@ const curatedOptions = computed(() => {
   if (settings.freeModelsOnly) {
     entries = entries.filter((e) => e.tier === 'free')
   }
+  const search = modelSearch.value.trim().toLowerCase()
+  entries = entries.filter((e) => `${e.displayName} ${e.slug}`.toLowerCase().includes(search))
   return entries.map((e) => ({
     label: e.displayName,
     value: e.slug,
     caption: entryCaption(e),
   }))
+})
+
+function filterModels(value: string, update: (fn: () => void) => void): void {
+  update(() => { modelSearch.value = value })
+}
+
+const selection = computed(() => {
+  if (!catalog.value) return { error: '', entry: null }
+  if (settings.modelMode !== 'auto' && !settings.modelId.trim()) {
+    return { error: 'Choose a model or use Automatic.', entry: null }
+  }
+  try {
+    const resolved = resolveModel(settings.modelMode === 'auto' ? 'auto' : settings.modelId,
+      settings.freeModelsOnly, catalog.value)
+    return { error: '', entry: resolved.entry }
+  } catch (err) {
+    return { error: (err as Error).message, entry: null }
+  }
 })
 
 const promptAvailLabel = computed(() => {
@@ -181,10 +217,19 @@ function clearKey(): void {
               filled
               dense
               class="q-mt-sm"
-              label="Curated model"
+              label="Search current OpenRouter models"
               style="max-width: 560px"
-              :loading="catalog === null"
+              use-input
+              fill-input
+              hide-selected
+              :input-debounce="0"
+              :loading="loadingModels"
+              :disable="loadingModels || catalog === null"
+              @filter="filterModels"
             >
+              <template #no-option>
+                <q-item><q-item-section>No matching models. Try Refresh models.</q-item-section></q-item>
+              </template>
               <template #option="scope">
                 <q-item v-bind="scope.itemProps">
                   <q-item-section>
@@ -204,6 +249,26 @@ function clearKey(): void {
               label="OpenRouter model id (e.g. google/gemini-2.5-flash-lite)"
               style="max-width: 560px"
             />
+
+            <div class="row items-center q-gutter-sm q-mt-xs">
+              <q-btn flat dense no-caps icon="refresh" label="Refresh models" :loading="loadingModels" @click="refreshModels" />
+              <span v-if="catalog" class="text-caption text-grey">
+                {{ allEntries(catalog).length }} text models · {{ catalog.free.length }} free · updated {{ new Date(catalog.generatedAt).toLocaleTimeString() }}
+              </span>
+            </div>
+            <q-banner v-if="catalogError || selection.error" dense rounded class="bg-negative text-white q-mt-sm" role="alert">
+              {{ catalogError || selection.error }}
+            </q-banner>
+            <div v-if="selection.entry" class="text-caption q-mt-sm">
+              Selected: {{ selection.entry.displayName }} ({{ selection.entry.slug }})<br>
+              {{ entryCaption(selection.entry) }}
+            </div>
+            <div class="text-caption text-grey q-mt-sm">
+              Automatic selects the highest-scoring model priced up to $1.50/M input and $6/M output,
+              or a free model when Free models only is enabled. Prices shown use the highest published text rates.
+              <a href="https://artificialanalysis.ai/" target="_blank" rel="noopener noreferrer">Artificial Analysis</a>
+              scores are supplied by OpenRouter; unscored models appear last within each price group.
+            </div>
           </div>
         </template>
 
