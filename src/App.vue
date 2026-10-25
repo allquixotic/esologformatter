@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, nextTick, onMounted, ref } from 'vue'
 import { useQuasar } from 'quasar'
 import AiCard from '@/components/AiCard.vue'
 import ChannelsCard from '@/components/ChannelsCard.vue'
@@ -9,14 +9,33 @@ import OptionsCard from '@/components/OptionsCard.vue'
 import RunCard from '@/components/RunCard.vue'
 import { completeOAuthLogin } from '@/llm/openrouter'
 import { useSettingsStore, type ThemePreference } from '@/stores/settings'
+import { useSessionStore } from '@/stores/session'
+import { clearSiteStorage } from '@/fs/storage'
 
 const $q = useQuasar()
 const settings = useSettingsStore()
+const session = useSessionStore()
+const clearingSettings = ref(false)
 
 settings.applyTheme()
 settings.$subscribe(() => {
-  settings.persist()
-})
+  if (!clearingSettings.value) settings.persist()
+}, { flush: 'sync' })
+
+async function clearSettings(): Promise<void> {
+  clearingSettings.value = true
+  await nextTick()
+  try {
+    await clearSiteStorage()
+    // Drop any OAuth query as well; do not re-import a key after clearing it.
+    window.location.replace(window.location.pathname)
+  } catch (err) {
+    settings.$reset()
+    session.reset()
+    clearingSettings.value = false
+    $q.notify({ type: 'negative', message: (err as Error).message })
+  }
+}
 
 const themeIcon = computed(() => {
   if (settings.theme === 'system') return 'brightness_auto'
@@ -50,6 +69,7 @@ onMounted(async () => {
           ESO Log Formatter
         </q-toolbar-title>
 
+        <q-btn flat dense no-caps label="Clear Settings" :loading="clearingSettings" :disable="session.running" @click="clearSettings" />
         <q-btn-dropdown flat :icon="themeIcon" aria-label="Theme">
           <q-list>
             <q-item
@@ -80,7 +100,7 @@ onMounted(async () => {
       </q-toolbar>
     </q-header>
 
-    <q-page-container>
+    <q-page-container v-if="!clearingSettings">
       <q-page padding>
         <div class="app-flow column q-gutter-y-md q-mx-auto">
           <!-- rconv-style flow: configure everything up front, then pick the log. -->

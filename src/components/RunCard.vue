@@ -2,6 +2,7 @@
 import { computed, nextTick, ref, watch } from 'vue'
 import { QScrollArea, useQuasar } from 'quasar'
 import DiffView from '@/components/DiffView.vue'
+import SectionCard from '@/components/SectionCard.vue'
 import { generate } from '@/app/runner'
 import { uneditedName } from '@/core/naming'
 import { downloadText } from '@/fs/access'
@@ -57,11 +58,7 @@ function download(): void {
 </script>
 
 <template>
-  <q-card flat bordered>
-    <q-card-section>
-      <div class="text-h6">Step 3 — Generate</div>
-    </q-card-section>
-
+  <SectionCard section-id="run" title="Step 3 — Generate">
     <q-card-section class="q-pt-none column q-gutter-md">
       <div class="row q-gutter-sm items-center">
         <q-btn
@@ -128,7 +125,11 @@ function download(): void {
           <q-btn color="primary" icon="download" label="Download" @click="download" />
         </div>
 
-        <q-expansion-item icon="preview" label="Preview" default-opened dense>
+        <q-expansion-item
+          :model-value="!settings.collapsedSections.preview"
+          icon="preview" label="Preview" dense
+          @update:model-value="(expanded: boolean) => settings.setSectionCollapsed('preview', !expanded)"
+        >
           <q-scroll-area style="height: 320px" class="log-area q-pa-sm">
             <pre class="preview-pre">{{ session.result.content }}</pre>
           </q-scroll-area>
@@ -136,9 +137,11 @@ function download(): void {
 
         <q-expansion-item
           v-if="session.diffParts && session.diffParts.length > 0"
+          :model-value="!settings.collapsedSections.diff"
           icon="difference"
           label="AI changes (diff)"
           dense
+          @update:model-value="(expanded: boolean) => settings.setSectionCollapsed('diff', !expanded)"
         >
           <q-scroll-area style="height: 320px" class="log-area q-pa-sm">
             <DiffView :parts="session.diffParts" />
@@ -146,7 +149,7 @@ function download(): void {
         </q-expansion-item>
       </template>
     </q-card-section>
-  </q-card>
+  </SectionCard>
 </template>
 
 <style scoped>

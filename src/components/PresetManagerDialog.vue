@@ -1,13 +1,15 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useQuasar } from 'quasar'
-import { WEEKDAYS, type PresetDefinition, type Weekday } from '@/core/presets'
+import { WEEKDAYS, type PresetDefinition } from '@/core/presets'
 import { useSettingsStore } from '@/stores/settings'
+import TimezoneSelect from '@/components/TimezoneSelect.vue'
 
 const model = defineModel<boolean>({ required: true })
 
 const $q = useQuasar()
 const settings = useSettingsStore()
+const weekdayOptions = WEEKDAYS.map((value) => ({ label: value[0]!.toUpperCase() + value.slice(1), value }))
 
 const editingOriginalName = ref<string | null>(null)
 const formVisible = ref(false)
@@ -65,7 +67,7 @@ function remove(preset: PresetDefinition): void {
 
 <template>
   <q-dialog v-model="model">
-    <q-card style="min-width: 560px; max-width: 95vw">
+    <q-card style="width: 640px; max-width: 95vw">
       <q-card-section class="row items-center">
         <div class="text-h6">Event presets</div>
         <q-space />
@@ -91,7 +93,6 @@ function remove(preset: PresetDefinition): void {
             <q-item-section side>
               <div class="row q-gutter-xs">
                 <q-btn
-                  v-if="!preset.builtin"
                   flat
                   dense
                   round
@@ -109,7 +110,6 @@ function remove(preset: PresetDefinition): void {
                   aria-label="Delete preset"
                   @click="remove(preset)"
                 />
-                <q-icon v-else name="lock" class="q-mt-sm" color="grey" />
               </div>
             </q-item-section>
           </q-item>
@@ -134,7 +134,9 @@ function remove(preset: PresetDefinition): void {
           <q-select
             v-model="form.weekday"
             class="col-6"
-            :options="WEEKDAYS as unknown as Weekday[]"
+            :options="weekdayOptions"
+            emit-value
+            map-options
             filled
             dense
             label="Weekday"
@@ -165,13 +167,11 @@ function remove(preset: PresetDefinition): void {
             min="0"
             label="Default weeks ago"
           />
-          <q-input
+          <TimezoneSelect
             v-model="form.timezone"
             class="col-6"
-            filled
-            dense
-            label="IANA timezone"
-            hint="e.g. America/New_York, Europe/London"
+            label="Timezone"
+            hint="Timezone where this event takes place"
           />
           <q-input v-model="form.filePrefix" class="col-6" filled dense label="File prefix" />
         </div>

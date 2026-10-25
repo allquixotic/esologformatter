@@ -44,7 +44,7 @@ function maxPrice(pricing: Record<string, unknown>, key: string, optional = fals
 function parseModel(value: unknown): OpenRouterModelInfo | null {
   const raw = record(value)
   if (typeof raw.id !== 'string' || !raw.id.includes('/')) return null
-  // Batch, routing, and classification models cannot perform this synchronous editing task.
+  // Exclude batch, general-purpose routers, and classification models; family aliases remain usable.
   if (raw.id.endsWith(':batch') || raw.id.startsWith('openrouter/') ||
       /(?:^|[-/])(content-safety|guard|moderation|embed|embedding|rerank)(?:[-/:]|$)/i.test(raw.id)) return null
   const architecture = record(raw.architecture)

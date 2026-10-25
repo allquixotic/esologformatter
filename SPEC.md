@@ -17,6 +17,7 @@ I.zones: Core resolver converts event/range instants into raw log wall-clock bou
 I.options: Options UI shows browser, log-recording, event/range zones and effective raw-log range.
 I.runner: Generate uses same resolved bounds shown by options preview and logs both source and raw-log ranges.
 I.models: Browser loads paginated OpenRouter /api/v1/models; prices, capabilities, and optional benchmark scores share one source. No snapshot job or Artificial Analysis key required.
+I.preferences: Local storage persists custom preset overrides, section collapse state, and model-selection origin. Clear Settings resets origin storage without confirmation.
 
 §V
 V1: Explicit logTimezone alone controls preset-to-log conversion; browser zone cannot change bounds.
@@ -30,8 +31,12 @@ V8: Eastern event + Central log resolves one hour earlier and selects full inten
 V9: At 390px, timezone roles stack without page-level horizontal overflow.
 V10: Model discovery reads all bounded same-origin pages, validates rows, deduplicates IDs, and excludes expired or unsuitable models.
 V11: Free-only selection requires zero text/request prices in every mode; completion requests enforce zero provider price caps. Never substitute paid models.
-V12: Catalog failures, empty lists, and retired selections show actionable errors; refresh recovers; no bundled fallback. AI setup failure preserves original output.
+V12: Catalog failures, empty lists, and retired selections show actionable errors; refresh recovers; no bundled fallback. AI setup failure preserves original output except explicit blank model selection (V16).
 V13: Rank current scores within price groups without fixed score cutoffs; missing scores stay unknown and sort last.
+V14: Editing built-in presets saves custom overrides without mutating factory definitions; deletion restores original. Weekday storage remains lowercase.
+V15: Section collapse choices survive reload and conditional rendering; collapse never changes processing settings.
+V16: First model default tries Luna Latest, Gemini Flash Latest, Haiku Latest in order once; no match stays blank. Explicit or migrated user choices are preserved; blank selection blocks AI generation.
+V17: Clear Settings clears local/session storage, every IndexedDB store, and Cache Storage before reload; persistence cannot rewrite old preferences during reset.
 
 §T
 id|status|task|cites
@@ -40,6 +45,7 @@ T2|x|Persist zone settings and build three-zone options UI|V6,V7,I.settings,I.op
 T3|x|Use shared resolver in processing and technical log|V1,V2,V3,V4,I.runner
 T4|x|Run full automated and rendered QA|V1,V2,V3,V4,V5,V6,V7,V8,V9
 T5|x|Replace snapshot discovery; enforce free-only; add refresh and selection feedback|V10,V11,V12,V13,I.models
+T6|x|Persist preset edits and collapsed sections; update preset controls; add ordered model defaults and storage reset|V14,V15,V16,V17,I.preferences
 
 §B
 id|date|cause|fix

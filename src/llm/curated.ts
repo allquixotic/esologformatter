@@ -60,6 +60,14 @@ export function findEntry(catalog: CuratedCatalog, slug: string): CuratedEntry |
   return allEntries(catalog).find((e) => e.slug.toLowerCase() === lower)
 }
 
+/** Rolling family aliases, in the requested first-visit preference order. */
+export function preferredDefaultModel(catalog: CuratedCatalog): CuratedEntry | undefined {
+  for (const slug of ['~openai/gpt-luna-latest', '~google/gemini-flash-latest', '~anthropic/claude-haiku-latest']) {
+    const entry = findEntry(catalog, slug)
+    if (entry) return entry
+  }
+}
+
 export interface ModelResolution {
   modelSlug: string
   entry: CuratedEntry

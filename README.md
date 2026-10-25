@@ -35,7 +35,7 @@ intelligence scores come from the same response. The site no longer depends on
 Convocations' scheduled snapshot or a separate Artificial Analysis API key.
 
 The searchable list includes current text models with at least 8K context,
-excluding batch-only, routing, and classification models. Automatic selects the
+excluding batch-only, general-purpose routers, and classification models. Automatic selects the
 highest-scoring model within $1.50/M input and $6/M output; unknown scores sort
 last. Free-only applies to automatic, list, and manual choices, checks published
 pricing overrides and request charges, and adds zero-price provider limits to
@@ -43,4 +43,25 @@ completion requests. No fixed benchmark threshold or bundled retired IDs remain.
 
 Refresh models retries failed discovery. Each processing run re-fetches the list
 and validates the selected model. Discovery or correction failures preserve the
-uncorrected output and report the reason. No account key is used to list models.
+uncorrected output and report the reason. An explicitly blank model selection
+blocks AI generation. No account key is used to list models.
+
+For users without a saved model choice, Model list tries the rolling aliases
+GPT Luna Latest, Gemini Flash Latest, then Claude Haiku Latest. If none is
+available, selection stays blank until the user chooses. This initialization is
+remembered, and later refreshes never override a user's selection or chosen mode.
+
+## Saved preferences
+
+Built-in event presets can be edited into custom overrides stored in localStorage.
+Deleting an override restores the original built-in preset. Renaming an edited
+preset saves a separate custom preset. Weekdays retain lowercase stored values;
+the editor displays capitalized labels and offers a searchable Timezone dropdown.
+
+Each main section remembers its collapsed state across visits. Preview, diff,
+and technical-log expansion choices are remembered too. Collapsing a section
+only changes its presentation, not its processing options.
+
+Clear Settings in the top bar clears this origin's localStorage, sessionStorage,
+IndexedDB contents (including saved folder handles), and Cache Storage, then
+reloads without confirmation. Fresh default preferences are initialized on reload.

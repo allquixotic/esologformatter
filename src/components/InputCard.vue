@@ -15,6 +15,7 @@ import {
   rememberWorkingDirectory,
 } from '@/fs/handles'
 import { useSessionStore } from '@/stores/session'
+import SectionCard from '@/components/SectionCard.vue'
 
 const $q = useQuasar()
 const session = useSessionStore()
@@ -204,10 +205,8 @@ function onDrop(evt: DragEvent): void {
 </script>
 
 <template>
-  <q-card flat bordered>
-    <q-card-section>
-      <div class="text-h6">Step 2 — Chat log</div>
-      <div class="text-caption text-grey">
+  <SectionCard section-id="input" title="Step 2 — Chat log">
+    <template #description>
         <template v-if="supportsFileSystemAccess">
           Grant access to the folder that holds your logs once — outputs are saved straight back
           to it. Everything is processed locally in your browser.
@@ -216,8 +215,7 @@ function onDrop(evt: DragEvent): void {
           Upload a log below and download the result. Everything is processed locally in your
           browser.
         </template>
-      </div>
-    </q-card-section>
+    </template>
 
     <!-- Implementation 1: folder workflow (File System Access API). -->
     <q-card-section v-if="supportsFileSystemAccess" class="q-pt-none column q-gutter-sm">
@@ -319,7 +317,7 @@ function onDrop(evt: DragEvent): void {
         {{ session.channelSummaries.length }} channels.
       </q-banner>
     </q-card-section>
-  </q-card>
+  </SectionCard>
 </template>
 
 <style scoped>

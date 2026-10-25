@@ -117,10 +117,11 @@ async function makeProvider(onNote: (message: string) => void): Promise<Correcti
     onNote('Warning: OpenRouter API key not configured; skipping AI corrections.')
     return null
   }
-  if (settings.modelMode !== 'auto' && !settings.modelId.trim()) {
-    throw new Error('Choose a model or use Automatic.')
-  }
   const catalog = await loadCuratedCatalog()
+  settings.initializeModel(catalog)
+  if (settings.modelMode !== 'auto' && !settings.modelId.trim()) {
+    throw new RunError('Select an AI model before generating.')
+  }
   onNote('Current OpenRouter models loaded.')
   const preference = settings.modelMode === 'auto' ? 'auto' : settings.modelId
   const resolution = resolveModel(preference, settings.freeModelsOnly, catalog)
@@ -137,6 +138,11 @@ async function makeProvider(onNote: (message: string) => void): Promise<Correcti
 export async function generate(): Promise<void> {
   const settings = useSettingsStore()
   const session = useSessionStore()
+
+  if (settings.useAi && settings.aiProvider === 'openrouter' && settings.outputFormat !== 'table' &&
+      settings.modelMode !== 'auto' && !settings.modelId.trim()) {
+    throw new RunError('Select an AI model before generating.')
+  }
 
   const folderMode = session.workDir !== null
   if (folderMode && session.logHandles.length === 0) {
@@ -217,6 +223,7 @@ export async function generate(): Promise<void> {
           session.note(`Applied ${provider.label} grammar and spelling corrections`)
         }
       } catch (err) {
+        if (err instanceof RunError) throw err
         session.error(
           `Warning: Could not apply AI corrections: ${(err as Error).message}. Using original text.`,
         )

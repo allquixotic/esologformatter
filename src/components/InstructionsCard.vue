@@ -1,19 +1,9 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import { useSessionStore } from '@/stores/session'
-
-const session = useSessionStore()
-const expanded = computed(() => !session.hasInput)
+import SectionCard from '@/components/SectionCard.vue'
 </script>
 
 <template>
-  <q-card flat bordered>
-    <q-expansion-item
-      :model-value="expanded"
-      icon="help_outline"
-      label="What's this? How do I use it?"
-      header-class="text-subtitle1"
-    >
+  <SectionCard section-id="instructions" title="What's this? How do I use it?">
       <q-card-section class="q-pt-none">
         <div class="text-h6 q-mb-sm">What's this?</div>
         <ul class="q-my-none">
@@ -57,6 +47,5 @@ const expanded = computed(() => !session.hasInput)
           <li>Settings are stored in your browser's local storage. No cookies, no tracking.</li>
         </ul>
       </q-card-section>
-    </q-expansion-item>
-  </q-card>
+  </SectionCard>
 </template>

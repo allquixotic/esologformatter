@@ -5,6 +5,7 @@ import { allEntries, loadCuratedCatalog, resolveModel, type CuratedCatalog, type
 import { startOAuthLogin } from '@/llm/openrouter'
 import { promptApiAvailability, type PromptApiAvailability } from '@/llm/promptApi'
 import { useSettingsStore } from '@/stores/settings'
+import SectionCard from '@/components/SectionCard.vue'
 
 const $q = useQuasar()
 const settings = useSettingsStore()
@@ -24,6 +25,7 @@ async function refreshModels(): Promise<void> {
   catalog.value = null
   try {
     catalog.value = await loadCuratedCatalog()
+    settings.initializeModel(catalog.value)
   } catch (err) {
     catalogError.value = `Could not load models: ${(err as Error).message}`
   } finally {
@@ -140,14 +142,11 @@ function clearKey(): void {
 </script>
 
 <template>
-  <q-card flat bordered>
-    <q-card-section>
-      <div class="text-h6">AI corrections (optional)</div>
-      <div class="text-caption text-grey">
+  <SectionCard section-id="ai" title="AI corrections (optional)">
+    <template #description>
         Fix spelling and grammar with an LLM while preserving names, fantasy terms, and the
         dialogue format. Off by default — nothing is sent anywhere until you enable it.
-      </div>
-    </q-card-section>
+    </template>
 
     <q-card-section class="q-pt-none column q-gutter-md">
       <q-toggle v-model="settings.useAi" label="Enable AI grammar &amp; spelling correction" />
@@ -199,18 +198,19 @@ function clearKey(): void {
             <div class="text-subtitle2 q-mb-xs">Model</div>
             <div class="row q-gutter-md items-center">
               <q-btn-toggle
-                v-model="settings.modelMode"
+                :model-value="settings.modelMode"
                 :options="modelModeOptions"
                 toggle-color="primary"
                 unelevated
                 no-caps
+                @update:model-value="settings.selectModelMode"
               />
-              <q-toggle v-model="settings.freeModelsOnly" label="Free models only" />
+              <q-toggle v-model="settings.freeModelsOnly" label="Free models only" @update:model-value="settings.modelSelectionOrigin = 'user'" />
             </div>
 
             <q-select
               v-if="settings.modelMode === 'curated'"
-              v-model="settings.modelId"
+              :model-value="settings.modelId"
               :options="curatedOptions"
               emit-value
               map-options
@@ -225,6 +225,7 @@ function clearKey(): void {
               :input-debounce="0"
               :loading="loadingModels"
               :disable="loadingModels || catalog === null"
+              @update:model-value="settings.selectModel"
               @filter="filterModels"
             >
               <template #no-option>
@@ -242,12 +243,13 @@ function clearKey(): void {
 
             <q-input
               v-if="settings.modelMode === 'manual'"
-              v-model="settings.modelId"
+              :model-value="settings.modelId"
               filled
               dense
               class="q-mt-sm"
               label="OpenRouter model id (e.g. google/gemini-2.5-flash-lite)"
               style="max-width: 560px"
+              @update:model-value="settings.selectModel"
             />
 
             <div class="row items-center q-gutter-sm q-mt-xs">
@@ -288,5 +290,5 @@ function clearKey(): void {
         </div>
       </template>
     </q-card-section>
-  </q-card>
+  </SectionCard>
 </template>

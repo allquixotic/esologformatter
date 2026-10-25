@@ -6,6 +6,7 @@ import { detectBrowserTimeZone } from '@/core/timezones'
 import { useSettingsStore } from '@/stores/settings'
 import PresetManagerDialog from '@/components/PresetManagerDialog.vue'
 import TimezoneSelect from '@/components/TimezoneSelect.vue'
+import SectionCard from '@/components/SectionCard.vue'
 
 const settings = useSettingsStore()
 const showPresetManager = ref(false)
@@ -91,11 +92,7 @@ function useBrowserForLog(): void {
 </script>
 
 <template>
-  <q-card flat bordered>
-    <q-card-section>
-      <div class="text-h6">Step 1 — Options</div>
-    </q-card-section>
-
+  <SectionCard section-id="options" title="Step 1 — Options">
     <q-card-section class="q-pt-none column q-gutter-md">
       <div>
         <div class="text-subtitle2 q-mb-xs">Output format</div>
@@ -325,7 +322,7 @@ function useBrowserForLog(): void {
     </q-card-section>
 
     <PresetManagerDialog v-model="showPresetManager" />
-  </q-card>
+  </SectionCard>
 </template>
 
 <style scoped>

@@ -4,6 +4,7 @@ import type { QTableColumn } from 'quasar'
 import { ALL_CHANNEL_NAMES, CHAT_CHANNELS } from '@/core/channels'
 import { useSessionStore, type ChannelSummary } from '@/stores/session'
 import { useSettingsStore } from '@/stores/settings'
+import SectionCard from '@/components/SectionCard.vue'
 
 const session = useSessionStore()
 const settings = useSettingsStore()
@@ -42,16 +43,13 @@ function setAlias(channel: number, value: string | number | null): void {
 </script>
 
 <template>
-  <q-card flat bordered>
-    <q-card-section>
-      <div class="text-h6">Channels</div>
-      <div class="text-caption text-grey">
+  <SectionCard section-id="channels" title="Channels">
+    <template #description>
         Choose which channels appear in the output and how they are labeled.
         <template v-if="!session.hasInput">
           Once a log is loaded, only the channels found in it are listed.
         </template>
-      </div>
-    </q-card-section>
+    </template>
 
     <q-card-section class="q-pt-none">
       <q-table
@@ -115,5 +113,5 @@ function setAlias(channel: number, value: string | number | null): void {
         </template>
       </q-table>
     </q-card-section>
-  </q-card>
+  </SectionCard>
 </template>

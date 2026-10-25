@@ -134,6 +134,7 @@ test.each(['failed-fetch', 'paid-selection', 'retired-selection'])('V12_Discover
   setActivePinia(createPinia())
   const settings = useSettingsStore()
   settings.$patch({ useAi: true, freeModelsOnly: true, modelMode: 'manual',
+    modelSelectionOrigin: 'user',
     modelId: failure === 'retired-selection' ? 'vendor/retired' : 'vendor/paid', openrouterApiKey: 'test-key' })
   const session = useSessionStore()
   session.setFiles([{ name: 'test.log', text: '2026-07-03T18:01:46.796-05:00 0,Test Character,Hello friend\n' }])
